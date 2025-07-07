@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hostname Monitoring Dashboard</title>
+    <style>
+        /* General body styling */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+
+        /* Main title styling */
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+        }
+
+        /* Table container for better responsiveness */
+        .table-container {
+            overflow-x: auto;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            border-radius: 8px;
+        }
+
+        /* Table styling */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: #fff;
+        }
+
+        /* Table header styling */
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+            white-space: nowrap;
+        }
+
+        /* Table header specific styling */
+        thead {
+            background-color: #34495e;
+            color: white;
+            font-weight: bold;
+        }
+
+        /* Alternating row colors for readability */
+        tbody tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+
+        /* Hover effect for rows */
+        tbody tr:hover {
+            background-color: #e9ecef;
+        }
+
+        /* Status indicator styling */
+        .status-active {
+            color: #27ae60; /* Green */
+            font-weight: bold;
+        }
+        .status-inactive {
+            color: #c0392b; /* Red */
+            font-weight: bold;
+        }
+
+        /* Loading spinner styling */
+        #loader {
+            text-align: center;
+            padding: 20px;
+            font-size: 1.2em;
+            color: #555;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Hostname Monitoring Dashboard</h1>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Hostname</th>
+                    <th>First Seen</th>
+                    <th>Last Seen</th>
+                    <th>Age (Days)</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="hostname-table-body">
+                <!-- Hostname data will be dynamically and lazily loaded here -->
+            </tbody>
+        </table>
+    </div>
+    <div id="loader">Loading more hostnames...</div>
+
+    <!-- Data is stored safely in a dedicated script tag -->
+    <script id="hostname-data" type="application/json">
+        <%- JSON.stringify(hostnames || []) %>
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Retrieve and parse the data from the dedicated script tag
+            const dataElement = document.getElementById('hostname-data');
+            const hostnames = JSON.parse(dataElement.textContent);
+
+            const tableBody = document.getElementById('hostname-table-body');
+            const loader = document.getElementById('loader');
+            let loadedCount = 0;
+            const chunkSize = 100; // Number of rows to load at a time
+
+            // Function to render a chunk of rows
+            function loadMoreRows() {
+                const fragment = document.createDocumentFragment();
+                const newLimit = Math.min(loadedCount + chunkSize, hostnames.length);
+
+                if (loadedCount >= hostnames.length) {
+                    loader.classList.add('hidden'); // Hide loader if all hostnames are loaded
+                    return;
+                }
+
+                for (let i = loadedCount; i < newLimit; i++) {
+                    const hostname = hostnames[i];
+                    const row = document.createElement('tr');
+
+                    const firstSeen = new Date(hostname.firstSeen);
+                    const lastSeen = new Date(hostname.lastSeen);
+
+                    const ageInMilliseconds = new Date() - firstSeen;
+                    const ageInDays = Math.floor(ageInMilliseconds / (1000 * 60 * 60 * 24));
+
+                    row.innerHTML = `
+                        <td>${i + 1}</td>
+                        <td>${hostname.hostname}</td>
+                        <td>${firstSeen.toLocaleDateString()}</td>
+                        <td>${lastSeen.toLocaleDateString()}</td>
+                        <td>${ageInDays}</td>
+                        <td class="${hostname.isActive ? 'status-active' : 'status-inactive'}">
+                            ${hostname.isActive ? 'Active' : 'Inactive'}
+                        </td>
+                    `;
+                    fragment.appendChild(row);
+                }
+
+                tableBody.appendChild(fragment);
+                loadedCount = newLimit;
+
+                if (loadedCount >= hostnames.length) {
+                    loader.classList.add('hidden');
+                }
+            }
+
+            if (hostnames.length > 0) {
+                loadMoreRows();
+            } else {
+                loader.textContent = "No hostnames found in the database.";
+            }
+
+            window.addEventListener('scroll', () => {
+                if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 500) {
+                    if (loadedCount < hostnames.length) {
+                        loadMoreRows();
+                    }
+                }
+            });
+        });
+    </script>
+
+</body>
+</html>

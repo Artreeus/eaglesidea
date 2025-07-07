@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MD5 Hash Monitoring Dashboard</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 { text-align: center; color: #2c3e50; margin-bottom: 20px; }
+        .table-container {
+            overflow-x: auto;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            border-radius: 8px;
+        }
+        table { width: 100%; border-collapse: collapse; background-color: #fff; }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+            white-space: nowrap;
+        }
+        thead { background-color: #34495e; color: white; font-weight: bold; }
+        tbody tr:nth-child(even) { background-color: #f8f9fa; }
+        tbody tr:hover { background-color: #e9ecef; }
+        .status-active { color: #27ae60; font-weight: bold; }
+        .status-inactive { color: #c0392b; font-weight: bold; }
+
+        /* Pagination Styles */
+        .pagination-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 0;
+        }
+        .pagination-info {
+            font-size: 0.9em;
+            color: #555;
+        }
+        .pagination-controls a {
+            text-decoration: none;
+            color: white;
+            background-color: #3498db;
+            padding: 8px 15px;
+            border-radius: 5px;
+            margin: 0 5px;
+            transition: background-color 0.3s;
+        }
+        .pagination-controls a:hover {
+            background-color: #2980b9;
+        }
+        .pagination-controls a.disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>MD5 Hash Monitoring Dashboard</h1>
+
+    <div class="pagination-container">
+        <div class="pagination-info">
+            Showing page <strong><%= currentPage %></strong> of <strong><%= totalPages.toLocaleString() %></strong>
+            (<%= totalHashes.toLocaleString() %> total hashes)
+        </div>
+        <div class="pagination-controls">
+            <a href="/?page=<%= currentPage - 1 %>" class="<%= currentPage <= 1 ? 'disabled' : '' %>">Previous</a>
+            <a href="/?page=<%= currentPage + 1 %>" class="<%= currentPage >= totalPages ? 'disabled' : '' %>">Next</a>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>MD5 Hash</th>
+                    <th>First Seen</th>
+                    <th>Last Seen</th>
+                    <th>Age (Days)</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% md5hashes.forEach((md5hash, index) => { %>
+                    <%
+                        const firstSeen = new Date(md5hash.firstSeen);
+                        const lastSeen = new Date(md5hash.lastSeen);
+                        const ageInMilliseconds = new Date() - firstSeen;
+                        const ageInDays = Math.floor(ageInMilliseconds / (1000 * 60 * 60 * 24));
+                        const itemNumber = (currentPage - 1) * limit + index + 1;
+                    %>
+                    <tr>
+                        <td><%= itemNumber.toLocaleString() %></td>
+                        <td><%= md5hash.hash %></td>
+                        <td><%= firstSeen.toLocaleDateString() %></td>
+                        <td><%= lastSeen.toLocaleDateString() %></td>
+                        <td><%= ageInDays %></td>
+                        <td class="<%= md5hash.isActive ? 'status-active' : 'status-inactive' %>">
+                            <%= md5hash.isActive ? 'Active' : 'Inactive' %>
+                        </td>
+                    </tr>
+                <% }); %>
+            </tbody>
+        </table>
+    </div>
+
+</body>
+</html>

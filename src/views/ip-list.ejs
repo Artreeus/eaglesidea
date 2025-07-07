@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IP Address List</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 2em; background-color: #f4f6f9; color: #333; }
+        h1 { color: #1a202c; }
+        #ip-count { font-size: 1.1em; margin-bottom: 1em; background-color: #e2e8f0; padding: 10px; border-radius: 8px; }
+        table { width: 100%; border-collapse: collapse; background-color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden; }
+        th, td { border-bottom: 1px solid #e2e8f0; padding: 12px 15px; text-align: left; white-space: nowrap; }
+        th { background-color: #edf2f7; font-weight: 600; }
+        tr:nth-child(even) { background-color: #f7fafc; }
+        tr:hover { background-color: #f1f5f9; }
+        #loader { text-align: center; padding: 20px; font-size: 1.2em; display: none; }
+        .status-active { color: #2f855a; font-weight: bold; }
+        .status-inactive { color: #c53030; }
+    </style>
+</head>
+<body>
+    <h1>Monitored IP Addresses</h1>
+    <div id="ip-count">
+        Showing <strong id="currently-showing"><%= ips.length %></strong> of <strong id="total-ips"><%= totalIps %></strong> IPs
+    </div>
+
+    <table id="ip-table">
+        <thead>
+            <tr>
+                <th>IP Address</th>
+                <th>First Seen (UTC)</th>
+                <th>Last Seen (UTC)</th>
+                <th>Age</th>
+                <th>Last Active</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody id="ip-table-body">
+            <% if(ips && ips.length > 0) { %>
+                <% ips.forEach(ip => { %>
+                    <tr>
+                        <td><%= ip.ip %></td>
+                        <td><%= new Date(ip.firstSeen).toLocaleString('en-GB', { timeZone: 'UTC' }) %></td>
+                        <td><%= new Date(ip.lastSeen).toLocaleString('en-GB', { timeZone: 'UTC' }) %></td>
+                        <td class="relative-time" data-date="<%= ip.firstSeen %>"></td>
+                        <td class="relative-time" data-date="<%= ip.lastSeen %>"></td>
+                        <td>
+                            <span class="<%= ip.isActive ? 'status-active' : 'status-inactive' %>">
+                                <%= ip.isActive ? 'Active' : 'Inactive' %>
+                            </span>
+                        </td>
+                    </tr>
+                <% }); %>
+            <% } else { %>
+                <tr>
+                    <td colspan="6">No IP addresses found in the database.</td>
+                </tr>
+            <% } %>
+        </tbody>
+    </table>
+
+    <div id="loader">Loading more IPs...</div>
+
+    <!-- Include day.js for relative time formatting -->
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/relativeTime.js"></script>
+    <script>
+        // Extend dayjs with the relativeTime plugin
+        dayjs.extend(window.dayjs_plugin_relativeTime);
+
+        /**
+         * Finds all elements with the 'relative-time' class and populates them
+         * with a human-readable time string (e.g., "2 hours ago").
+         */
+        function updateRelativeTimes() {
+            document.querySelectorAll('.relative-time').forEach(el => {
+                // Only update if the element hasn't been processed yet
+                if (!el.textContent) {
+                    const date = el.getAttribute('data-date');
+                    if (date) {
+                        el.textContent = dayjs(date).fromNow();
+                    }
+                }
+            });
+        }
+
+        const tableBody = document.getElementById('ip-table-body');
+        const loader = document.getElementById('loader');
+        const currentlyShowingEl = document.getElementById('currently-showing');
+
+        let page = 2; // Start with the second page since the first is pre-loaded
+        const limit = 50; // Must match the limit used in the backend API
+        let isLoading = false;
+
+        const fetchIps = async () => {
+            if (isLoading) return;
+            isLoading = true;
+            loader.style.display = 'block';
+
+            try {
+                const response = await fetch(`/api/ips?page=${page}&limit=${limit}`);
+                const newIps = await response.json();
+
+                if (newIps.length > 0) {
+                    const fragment = document.createDocumentFragment();
+                    newIps.forEach(ip => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${ip.ip}</td>
+                            <td>${new Date(ip.firstSeen).toLocaleString('en-GB', { timeZone: 'UTC' })}</td>
+                            <td>${new Date(ip.lastSeen).toLocaleString('en-GB', { timeZone: 'UTC' })}</td>
+                            <td class="relative-time" data-date="${ip.firstSeen}"></td>
+                            <td class="relative-time" data-date="${ip.lastSeen}"></td>
+                            <td>
+                                <span class="${ip.isActive ? 'status-active' : 'status-inactive'}">
+                                    ${ip.isActive ? 'Active' : 'Inactive'}
+                                </span>
+                            </td>
+                        `;
+                        fragment.appendChild(row);
+                    });
+                    tableBody.appendChild(fragment);
+                    updateRelativeTimes(); // Update times for the new rows
+                    page++;
+                    
+                    const currentCount = parseInt(currentlyShowingEl.textContent);
+                    currentlyShowingEl.textContent = currentCount + newIps.length;
+
+                } else {
+                    window.removeEventListener('scroll', handleScroll);
+                    loader.textContent = 'No more IPs to load.';
+                }
+            } catch (error) {
+                console.error('Failed to fetch more IPs:', error);
+                loader.textContent = 'Failed to load more IPs.';
+            } finally {
+                isLoading = false;
+                if (loader.textContent === 'No more IPs to load.') {
+                    setTimeout(() => loader.style.display = 'none', 2000);
+                } else {
+                    loader.style.display = 'none';
+                }
+            }
+        };
+
+        const handleScroll = () => {
+            if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 100) {
+                fetchIps();
+            }
+        };
+
+        window.addEventListener('scroll', handleScroll);
+        
+        // Run on initial page load for the pre-rendered rows
+        document.addEventListener('DOMContentLoaded', updateRelativeTimes);
+    </script>
+</body>
+</html>
