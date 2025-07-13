@@ -2,17 +2,31 @@ const express = require('express');
 const path = require('path');
 const mongoose = require('mongoose');
 const readline = require('readline');
+
+// --- Main Application Dependencies ---
 const connectDB = require('./config/database');
+const IpAddress = require('./models/IpAddress');
+const MispScanResult = require('./models/MispScanResult');
+
+// --- Service Classes ---
 const IpFetcher = require('./services/ipFetcher');
 const IpAnalyzer = require('./services/ipAnalyzer');
+const MispBulkScanner = require('./services/mispBulkScanner');
 const Scheduler = require('./utils/scheduler');
-const IpAddress = require('./models/IpAddress');
 
+/**
+ * The main class for the IP Monitoring Application.
+ * It initializes the server, sets up routes, manages scheduled jobs,
+ * provides a command-line interface, and handles the application lifecycle.
+ */
 class IpMonitoringApp {
   constructor() {
-    this.expressApp = express(); // Express app instance
+    this.expressApp = express();
+    
+    // --- Instantiate all services ---
     this.ipFetcher = new IpFetcher();
     this.ipAnalyzer = new IpAnalyzer();
+    this.mispBulkScanner = new MispBulkScanner();
     this.scheduler = new Scheduler(this.ipFetcher, this.ipAnalyzer);
   }
 
@@ -20,20 +34,30 @@ class IpMonitoringApp {
     try {
       console.log('🚀 Initializing IP Monitoring Application...');
       
+      // Connect to the database first
       await connectDB();
+      
+      // Setup the web server and its routes
       this.setupExpress();
+      
+      // Display initial statistics on startup
       await this.showInitialStats();
+      
+      // Start the daily cron job for fetching IPs
       this.scheduler.start();
+      
+      // Setup the interactive command-line interface
+      this.setupCLI();
+      
+      // Setup handlers for graceful shutdown
       this.setupGracefulShutdown();
       
       console.log('✅ Application initialized successfully!');
       console.log('📋 Available commands:');
-      console.log('   - Press "r" + Enter to run job manually');
-      console.log('   - Press "s" + Enter to show scheduler status');
-      console.log('   - Press "d" + Enter to show database stats');
-      console.log('   - Press "q" + Enter to quit');
-      
-      this.setupCLI();
+      console.log('   - "r" + Enter to run daily IP fetch job manually');
+      console.log('   - "s" + Enter to show scheduler status');
+      console.log('   - "d" + Enter to show database stats');
+      console.log('   - "q" + Enter to quit');
       
     } catch (error) {
       console.error('❌ Failed to initialize application:', error.message);
@@ -42,61 +66,140 @@ class IpMonitoringApp {
   }
 
   /**
-   * Configures and starts the Express web server.
+   * Configures and starts the Express web server and its routes.
    */
   setupExpress() {
     this.expressApp.set('view engine', 'ejs');
     this.expressApp.set('views', path.join(__dirname, 'views'));
 
-    // Route to render the initial HTML page with the first batch of IPs
+    // --- PAGE ROUTES ---
+
+    // Route to render the original IP list with infinite scroll.
     this.expressApp.get('/', async (req, res) => {
       try {
-        const initialLimit = 50; // Load first 50 IPs initially
-        
-        // Fetch the first batch of IPs
+        const initialLimit = 50;
         const initialIps = await IpAddress.find({}).sort({ lastSeen: -1 }).limit(initialLimit);
-        
-        // *** FIX: Get the total count of documents in the collection ***
         const totalIps = await IpAddress.countDocuments();
-        
-        // Render the template, now passing the totalIps variable
-        res.render('ip-list', { 
-            ips: initialIps,
-            totalIps: totalIps // The variable is now correctly passed
-        });
+        res.render('ip-list', { ips: initialIps, totalIps: totalIps });
       } catch (error) {
         console.error('Error fetching initial IPs for web view:', error);
         res.status(500).send("Error fetching IP addresses from the database.");
       }
     });
 
-    // API endpoint for fetching paginated data
+    // Route to render the new MISP dashboard.
+    this.expressApp.get('/misp-dashboard', (req, res) => {
+        res.render('misp-dashboard');
+    });
+
+    // --- API ROUTES ---
+
+    // API endpoint for fetching paginated data for the original ip-list page.
     this.expressApp.get('/api/ips', async (req, res) => {
         try {
             const page = parseInt(req.query.page) || 1;
             const limit = parseInt(req.query.limit) || 50;
             const skip = (page - 1) * limit;
-
-            const ips = await IpAddress.find({})
-                .sort({ lastSeen: -1 })
-                .skip(skip)
-                .limit(limit);
-
+            const ips = await IpAddress.find({}).sort({ lastSeen: -1 }).skip(skip).limit(limit);
             res.json(ips);
         } catch (error) {
-            console.error('Error fetching paginated IPs:', error);
             res.status(500).json({ message: "Error fetching data" });
         }
     });
 
+    // API endpoints for controlling the bulk scanner.
+    this.expressApp.post('/api/misp-scan/start', (req, res) => {
+        this.mispBulkScanner.startScan();
+        res.status(202).json({ message: 'Scan start request received.' });
+    });
+
+    this.expressApp.post('/api/misp-scan/pause', (req, res) => {
+        this.mispBulkScanner.pauseScan();
+        res.status(202).json({ message: 'Scan pause request received.' });
+    });
+
+    this.expressApp.post('/api/misp-scan/reset', async (req, res) => {
+        await this.mispBulkScanner.resetScan();
+        res.status(200).json({ message: 'Scan data has been reset.' });
+    });
+
+    // API endpoint for getting the scanner's live status.
+    this.expressApp.get('/api/misp-scan/status', (req, res) => {
+        const state = this.mispBulkScanner.getState();
+        res.json(state);
+    });
+
+    // API endpoint for fetching paginated scan results from the database.
+    this.expressApp.get('/api/misp-results', async (req, res) => {
+        try {
+            const page = parseInt(req.query.page) || 1;
+            const limit = parseInt(req.query.limit) || 50;
+            const status = req.query.status; // Optional filter by status.
+            
+            const query = {};
+            if (status) {
+                query.status = status;
+            }
+            
+            const skip = (page - 1) * limit;
+            const results = await MispScanResult.find(query).sort({ scannedAt: -1 }).skip(skip).limit(limit).lean();
+            const totalResults = await MispScanResult.countDocuments(query);
+
+            res.json({
+                results,
+                currentPage: page,
+                totalPages: Math.ceil(totalResults / limit)
+            });
+        } catch (error) {
+            console.error('Error fetching MISP results:', error);
+            res.status(500).json({ message: 'Error fetching results.' });
+        }
+    });
+
+    // POST /api/misp-results/upload
+this.expressApp.post('/api/misp-results/upload', async (req, res) => {
+  try {
+    const results = req.body.results;
+
+    // Optional: remove old scan data before inserting
+    for (const r of results) {
+      await MispScanResult.findOneAndUpdate(
+        { ip: r.ip },
+        { ...r },
+        { upsert: true, new: true }
+      );
+    }
+
+    res.status(200).json({ message: 'Scan results saved.' });
+  } catch (err) {
+    console.error('❌ Error saving results:', err.message);
+    res.status(500).json({ message: 'Error saving results' });
+  }
+});
+
+this.expressApp.get('/misp-results', async (req, res) => {
+  const results = await MispScanResult.find({}).sort({ scannedAt: -1 }).lean();
+  res.render('misp-results', { results });
+});
+
+this.expressApp.get('/misp-results/:ip', async (req, res) => {
+  const result = await MispScanResult.findOne({ ip: req.params.ip }).lean();
+  if (!result) return res.status(404).send('Not found');
+  res.render('misp-details', { result });
+});
+
+
+
     const PORT = process.env.PORT || 3000;
     this.expressApp.listen(PORT, () => {
-      console.log(`🌐 Web server running at http://localhost:${PORT}`);
+      console.log(`\n🌐 Web server running at http://localhost:${PORT}`);
+      console.log(`   - Main IP List: http://localhost:${PORT}/`);
+      console.log(`   - MISP Dashboard: http://localhost:${PORT}/misp-dashboard`);
     });
   }
 
   /**
-   * Displays initial database statistics in the console.
+   * Displays initial database statistics in the console on startup.
    */
   async showInitialStats() {
     try {
@@ -106,8 +209,8 @@ class IpMonitoringApp {
       console.log('\n' + '📊'.repeat(15));
       console.log('📊 CURRENT DATABASE STATISTICS');
       console.log('📊'.repeat(15));
-      console.log(`🗄️  Total unique IP addresses in database: ${totalCount}`);
-      console.log(`✅ Active IP addresses: ${activeCount}`);
+      console.log(`🗄️  Total unique IP addresses in database: ${totalCount.toLocaleString()}`);
+      console.log(`✅ Active IP addresses: ${activeCount.toLocaleString()}`);
       
       if (totalCount > 0) {
         const latestIps = await IpAddress.find()
@@ -122,7 +225,7 @@ class IpMonitoringApp {
         });
       }
       
-      console.log('📊'.repeat(15));
+      console.log('📊'.repeat(15) + '\n');
       
     } catch (error) {
       console.error('❌ Error fetching initial stats:', error.message);
@@ -143,13 +246,13 @@ class IpMonitoringApp {
       
       switch (command) {
         case 'r':
-          console.log('\n🔧 Running job manually...');
+          console.log('\n🔧 Running daily IP fetch job manually...');
           await this.scheduler.runNow();
           break;
           
         case 's':
           const status = this.scheduler.getStatus();
-          console.log('\n📊 Scheduler Status:');
+          console.log('\n🗓️  Scheduler Status:');
           console.log(`   Running: ${status.isRunning ? '🟢 Yes' : '🔴 No'}`);
           console.log(`   Current Time: ${status.currentTime}`);
           console.log(`   Next Run: ${status.nextRun}`);
@@ -171,16 +274,18 @@ class IpMonitoringApp {
   }
 
   /**
-   * Sets up handlers for graceful shutdown on termination signals.
+   * Sets up handlers for graceful shutdown on termination signals (e.g., Ctrl+C).
    */
   setupGracefulShutdown() {
     const gracefulShutdown = async (signal) => {
       console.log(`\n🛑 Received ${signal}. Shutting down gracefully...`);
       
+      // Ensure any running background jobs are requested to stop.
+      this.mispBulkScanner.pauseScan();
+      
       try {
         await mongoose.connection.close();
         console.log('✅ Database connection closed');
-        
         console.log('👋 Application shut down successfully');
         process.exit(0);
       } catch (error) {
@@ -207,7 +312,4 @@ class IpMonitoringApp {
 
 // --- Application Entry Point ---
 const app = new IpMonitoringApp();
-app.initialize().catch((error) => {
-  console.error('💥 Fatal error during initialization:', error.message);
-  process.exit(1);
-});
+app.initialize();

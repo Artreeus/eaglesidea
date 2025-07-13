@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MISP Scan Results</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2em; background-color: #f4f6f9; color: #333; }
+        h1 { color: #1a202c; }
+        #result-count { font-size: 1.1em; margin-bottom: 1em; background-color: #e2e8f0; padding: 10px; border-radius: 8px; }
+        table { width: 100%; border-collapse: collapse; background-color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden; }
+        th, td { border-bottom: 1px solid #e2e8f0; padding: 12px 15px; text-align: left; white-space: nowrap; }
+        th { background-color: #edf2f7; font-weight: 600; }
+        tr:nth-child(even) { background-color: #f7fafc; }
+        tr:hover { background-color: #f1f5f9; }
+        #loader { text-align: center; padding: 20px; font-size: 1.2em; display: none; }
+        #search-input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 1em; }
+        .highlight { background-color: yellow; font-weight: bold; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); justify-content: center; align-items: center; }
+        .modal-content { background-color: white; padding: 20px; border-radius: 10px; max-width: 600px; width: 90%; }
+        .close { position: absolute; top: 10px; right: 10px; font-size: 1.5em; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>MISP Scan Results</h1>
+    <div id="result-count">
+        Showing <strong id="currently-showing">0</strong> of <strong id="total-results"><%= results.length %></strong> Results
+    </div>
+
+    <!-- Search input -->
+    <input type="text" id="search-input" placeholder="Search by IP address" />
+
+    <table id="misp-table">
+        <thead>
+            <tr>
+                <th>IP Address</th>
+                <th>Event ID</th>
+                <th>Type</th>
+                <th>Category</th>
+                <th>First Seen (UTC)</th>
+                <th>Last Seen (UTC)</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+        <tbody id="misp-table-body">
+            <% if (results.length === 0) { %>
+                <tr>
+                    <td colspan="7" style="text-align:center;">Clear - No results found for MISP scan.</td>
+                </tr>
+            <% } else { %>
+                <% results.forEach(result => { %>
+                    <tr>
+                        <td><%= result.ip %></td>
+                        <td><%= result.event_id %></td>
+                        <td><%= result.type %></td>
+                        <td><%= result.category %></td>
+                        <td><%= new Date(result.first_seen).toLocaleString('en-GB', { timeZone: 'UTC' }) %></td>
+                        <td><%= new Date(result.last_seen).toLocaleString('en-GB', { timeZone: 'UTC' }) %></td>
+                        <td><button class="view-details-btn" data-ip="<%= result.ip %>" data-result='<%= JSON.stringify(result) %>'>View Details</button></td>
+                    </tr>
+                <% }); %>
+            <% } %>
+        </tbody>
+    </table>
+
+    <div id="loader">Loading more results...</div>
+
+    <!-- Modal for viewing details -->
+    <div id="details-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Details for IP: <span id="modal-ip"></span></h2>
+            <pre id="modal-content"></pre>
+        </div>
+    </div>
+
+    <!-- Include day.js for relative time formatting -->
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/relativeTime.js"></script>
+    <script>
+        // Extend dayjs with the relativeTime plugin
+        dayjs.extend(window.dayjs_plugin_relativeTime);
+
+        // Variables for managing the state
+        const tableBody = document.getElementById('misp-table-body');
+        const loader = document.getElementById('loader');
+        const currentlyShowingEl = document.getElementById('currently-showing');
+        const searchInput = document.getElementById('search-input');
+
+        let page = 1; // Start with the first page
+        const limit = 50; // Fetch 50 results at a time
+        let isLoading = false;
+        let allResults = []; // Store all results loaded
+
+        // Modal functionality
+        const modal = document.getElementById('details-modal');
+        const closeModal = document.getElementsByClassName('close')[0];
+        const modalIp = document.getElementById('modal-ip');
+        const modalContent = document.getElementById('modal-content');
+
+        closeModal.onclick = function() {
+            modal.style.display = 'none';
+        };
+
+        window.onclick = function(event) {
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        };
+
+        // Show detailed result in the modal
+        const showModal = (result) => {
+            modalIp.textContent = result.ip;
+            modalContent.textContent = JSON.stringify(result, null, 2);
+            modal.style.display = 'flex';
+        };
+
+        // Fetch MISP results from the API
+        const fetchResults = async () => {
+            if (isLoading) return;
+            isLoading = true;
+            loader.style.display = 'block';
+
+            try {
+                const response = await fetch(`/api/misp-results?page=${page}&limit=${limit}&searchTerm=${searchInput.value}`);
+                const newResults = await response.json();
+
+                if (newResults.results.length > 0) {
+                    // Append new results to the allResults array
+                    allResults = [...allResults, ...newResults.results];
+                    renderResults(allResults); // Re-render the table with all results
+                    page++;
+
+                    // Update the currently showing count
+                    currentlyShowingEl.textContent = allResults.length;
+                } else {
+                    window.removeEventListener('scroll', handleScroll);
+                    loader.textContent = 'No more results to load.';
+                }
+            } catch (error) {
+                console.error('Failed to fetch more results:', error);
+                loader.textContent = 'Failed to load more results.';
+            } finally {
+                isLoading = false;
+                loader.style.display = 'none';
+            }
+        };
+
+        // Handle infinite scrolling to load more results
+        const handleScroll = () => {
+            if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 100) {
+                fetchResults();
+            }
+        };
+
+        window.addEventListener('scroll', handleScroll);
+
+        // Render MISP results to the table
+        const renderResults = (results) => {
+            tableBody.innerHTML = ''; // Clear the table body
+
+            const fragment = document.createDocumentFragment();
+            results.forEach(result => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${result.ip}</td>
+                    <td>${result.event_id}</td>
+                    <td>${result.type}</td>
+                    <td>${result.category}</td>
+                    <td class="relative-time" data-date="${result.first_seen}">${dayjs(result.first_seen).fromNow()}</td>
+                    <td class="relative-time" data-date="${result.last_seen}">${dayjs(result.last_seen).fromNow()}</td>
+                    <td><button class="view-details-btn" data-ip="${result.ip}" data-result='${JSON.stringify(result)}'>View Details</button></td>
+                `;
+                fragment.appendChild(row);
+            });
+            tableBody.appendChild(fragment);
+
+            // Add click event to "View Details" buttons
+            document.querySelectorAll('.view-details-btn').forEach(button => {
+                button.addEventListener('click', () => {
+                    const result = JSON.parse(button.getAttribute('data-result'));
+                    showModal(result);
+                });
+            });
+        };
+
+        // Filter results based on search input
+        const filterResults = () => {
+            const searchTerm = searchInput.value.toLowerCase();
+            const filteredResults = allResults.filter(result => result.ip.toLowerCase().includes(searchTerm));
+            renderResults(filteredResults); // Re-render with the filtered results
+        };
+
+        // Add an event listener for search input
+        searchInput.addEventListener('input', filterResults);
+
+        // Initial load of results when the page is ready
+        document.addEventListener('DOMContentLoaded', fetchResults);
+    </script>
+</body>
+</html>

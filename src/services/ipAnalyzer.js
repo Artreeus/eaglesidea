@@ -5,9 +5,9 @@ class IpAnalyzer {
     this.stats = {
       totalFetched: 0,
       totalInDb: 0,
-      sameIps: 0, // IPs that already exist in database
-      newIps: 0, // New unique IPs to be added
-      duplicateHits: 0, // Duplicate IPs found in fetched data
+      sameIps: 0,
+      newIps: 0,
+      duplicateHits: 0,
     };
   }
 

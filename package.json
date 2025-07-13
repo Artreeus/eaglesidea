@@ -1,7 +1,7 @@
 {
   "name": "ip-monitoring-app",
-  "version": "1.0.0",
-  "description": "Daily IP monitoring and analysis application",
+  "version": "1.1.0",
+  "description": "Daily IP monitoring and analysis application with MISP integration",
   "main": "src/app.js",
   "scripts": {
     "start": "node src/app.js",
@@ -11,7 +11,7 @@
     "axios": "^1.6.0",
     "dotenv": "^16.3.1",
     "ejs": "^3.1.10",
-    "express": "^5.1.0",
+    "express": "^4.19.2",
     "moment-timezone": "^0.5.43",
     "mongoose": "^8.0.0",
     "node-cron": "^3.0.2"
@@ -23,7 +23,8 @@
     "ip",
     "monitoring",
     "analysis",
-    "mongodb"
+    "mongodb",
+    "misp"
   ],
   "author": "Your Name",
   "license": "MIT"
