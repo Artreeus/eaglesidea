@@ -1,201 +1,639 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MISP Scan Results</title>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/relativeTime.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; margin: 2em; background-color: #f4f6f9; color: #333; }
-        h1 { color: #1a202c; }
-        #result-count { font-size: 1.1em; margin-bottom: 1em; background-color: #e2e8f0; padding: 10px; border-radius: 8px; }
-        table { width: 100%; border-collapse: collapse; background-color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden; }
-        th, td { border-bottom: 1px solid #e2e8f0; padding: 12px 15px; text-align: left; white-space: nowrap; }
-        th { background-color: #edf2f7; font-weight: 600; }
-        tr:nth-child(even) { background-color: #f7fafc; }
-        tr:hover { background-color: #f1f5f9; }
-        #loader { text-align: center; padding: 20px; font-size: 1.2em; display: none; }
-        #search-input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 1em; }
-        .highlight { background-color: yellow; font-weight: bold; }
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); justify-content: center; align-items: center; }
-        .modal-content { background-color: white; padding: 20px; border-radius: 10px; max-width: 600px; width: 90%; }
-        .close { position: absolute; top: 10px; right: 10px; font-size: 1.5em; cursor: pointer; }
+        :root {
+            --primary-color: #3b82f6;
+            --light-gray: #e5e7eb;
+            --medium-gray: #9ca3af;
+            --dark-gray: #374151;
+            --background-color: #f9fafb;
+            --white: #ffffff;
+            --danger-color: #ef4444;
+            --success-color: #22c55e;
+            --border-radius: 8px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 1.5em;
+            background-color: var(--background-color);
+            color: var(--dark-gray);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: var(--dark-gray);
+            font-size: 2em;
+            margin-bottom: 0.5em;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5em;
+            flex-wrap: wrap;
+            gap: 1em;
+        }
+
+        #result-count {
+            font-size: 1em;
+            color: var(--medium-gray);
+        }
+
+        .search-container {
+            position: relative;
+            flex-grow: 1;
+            min-width: 300px;
+        }
+
+        #search-input {
+            width: 100%;
+            padding: 12px 15px 12px 40px;
+            border: 1px solid var(--light-gray);
+            border-radius: var(--border-radius);
+            font-size: 1em;
+            box-sizing: border-box;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        #search-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
+
+        .search-container::before {
+            content: '🔍';
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--medium-gray);
+        }
+
+        .add-new-container {
+            background-color: var(--white);
+            padding: 20px;
+            border-radius: var(--border-radius);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1.5em;
+        }
+
+        .add-new-container h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+
+        #add-ip-form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Span across all columns for the button */
+        .form-group.full-width {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        #add-ip-form input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid var(--light-gray);
+            border-radius: var(--border-radius);
+            font-size: 1em;
+            box-sizing: border-box;
+        }
+
+        #add-ip-form button {
+            background-color: var(--primary-color);
+            color: var(--white);
+            border: none;
+            padding: 12px 20px;
+            font-size: 1em;
+            font-weight: bold;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        #add-ip-form button:hover {
+            background-color: #2563eb;
+        }
+
+        .form-status-message {
+            margin-top: 10px;
+            font-weight: bold;
+            padding: 10px;
+            border-radius: 6px;
+            display: none;
+            /* Hidden by default */
+        }
+
+        .form-status-message.success {
+            display: block;
+            color: #155724;
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+        }
+
+        .form-status-message.error {
+            display: block;
+            color: #721c24;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+        }
+
+        .table-container {
+            position: relative;
+            border: 1px solid var(--light-gray);
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+        }
+
+        #loader {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            z-index: 10;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            opacity: 0;
+        }
+
+        #loader.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: var(--white);
+        }
+
+        th,
+        td {
+            border-bottom: 1px solid var(--light-gray);
+            padding: 14px 18px;
+            text-align: left;
+            vertical-align: middle;
+        }
+
+        th {
+            background-color: #f9fafb;
+            font-weight: 600;
+            font-size: 0.9em;
+            color: #6b7280;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover {
+            background-color: #f3f4f6;
+        }
+
+        .status-found {
+            color: var(--danger-color);
+            font-weight: bold;
+        }
+
+        .status-not-found {
+            color: var(--success-color);
+        }
+
+        .ip-address {
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .view-details-btn {
+            background-color: transparent;
+            color: var(--primary-color);
+            border: none;
+            padding: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .view-details-btn:hover {
+            text-decoration: underline;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 25px;
+            border-radius: var(--border-radius);
+            max-width: 800px;
+            width: 90%;
+            position: relative;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+        }
+
+        .close {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            font-size: 1.8em;
+            color: var(--medium-gray);
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .close:hover {
+            color: var(--dark-gray);
+        }
+
+        #modal-details-content {
+            background-color: #f3f4f6;
+            padding: 15px;
+            border-radius: 6px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        #pagination-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 25px 0;
+            gap: 8px;
+        }
+
+        .pagination-btn {
+            background-color: var(--white);
+            border: 1px solid var(--light-gray);
+            color: var(--dark-gray);
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+
+        .pagination-btn:hover {
+            background-color: #f3f4f6;
+            border-color: #d1d5db;
+        }
+
+        .pagination-btn:disabled {
+            color: var(--medium-gray);
+            cursor: not-allowed;
+            background-color: var(--background-color);
+        }
+
+        .pagination-btn.active {
+            background-color: var(--primary-color);
+            color: var(--white);
+            border-color: var(--primary-color);
+        }
+
+        .pagination-ellipsis {
+            padding: 8px 0;
+            color: var(--medium-gray);
+        }
     </style>
 </head>
+
 <body>
-    <h1>MISP Scan Results</h1>
-    <div id="result-count">
-        Showing <strong id="currently-showing">0</strong> of <strong id="total-results"><%= results.length %></strong> Results
-    </div>
+    <div class="container">
+        <h1>MISP Scan Results</h1>
+        <div class="header">
+            <div id="result-count">Calculating...</div>
+            <div class="search-container">
+                <input type="text" id="search-input" placeholder="Search by IP address..." />
+            </div>
+        </div>
 
-    <!-- Search input -->
-    <input type="text" id="search-input" placeholder="Search by IP address" />
+        <div class="add-new-container">
+            <h3>Add New / Update IP with Details</h3>
+            <form id="add-ip-form">
+                <div class="form-group">
+                    <input type="text" id="new-ip-input" placeholder="IP Address*" required>
+                </div>
+                <div class="form-group">
+                    <input type="text" id="new-event-info-input" placeholder="Event Info">
+                </div>
+                <div class="form-group">
+                    <input type="text" id="new-category-input" placeholder="Category">
+                </div>
+                <div class="form-group">
+                    <input type="text" id="new-type-input" placeholder="Type">
+                </div>
+                <div class="form-group full-width">
+                    <button type="submit">Add to Database</button>
+                </div>
+            </form>
+            <div id="form-message" class="form-status-message"></div>
+        </div>
 
-    <table id="misp-table">
-        <thead>
-            <tr>
-                <th>IP Address</th>
-                <th>Event ID</th>
-                <th>Type</th>
-                <th>Category</th>
-                <th>First Seen (UTC)</th>
-                <th>Last Seen (UTC)</th>
-                <th>Details</th>
-            </tr>
-        </thead>
-        <tbody id="misp-table-body">
-            <% if (results.length === 0) { %>
-                <tr>
-                    <td colspan="7" style="text-align:center;">Clear - No results found for MISP scan.</td>
-                </tr>
-            <% } else { %>
-                <% results.forEach(result => { %>
+        <div class="table-container">
+            <div id="loader">Loading...</div>
+            <table id="misp-table">
+                <thead>
                     <tr>
-                        <td><%= result.ip %></td>
-                        <td><%= result.event_id %></td>
-                        <td><%= result.type %></td>
-                        <td><%= result.category %></td>
-                        <td><%= new Date(result.first_seen).toLocaleString('en-GB', { timeZone: 'UTC' }) %></td>
-                        <td><%= new Date(result.last_seen).toLocaleString('en-GB', { timeZone: 'UTC' }) %></td>
-                        <td><button class="view-details-btn" data-ip="<%= result.ip %>" data-result='<%= JSON.stringify(result) %>'>View Details</button></td>
+                        <th>IP Address</th>
+                        <th>Status</th>
+                        <th>Event Info</th>
+                        <th>Category / Type</th>
+                        <th>Last Seen in MISP</th>
+                        <th>Details</th>
                     </tr>
-                <% }); %>
-            <% } %>
-        </tbody>
-    </table>
+                </thead>
+                <tbody id="misp-table-body"></tbody>
+            </table>
+        </div>
 
-    <div id="loader">Loading more results...</div>
+        <div id="pagination-controls"></div>
 
-    <!-- Modal for viewing details -->
-    <div id="details-modal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2>Details for IP: <span id="modal-ip"></span></h2>
-            <pre id="modal-content"></pre>
+        <div id="details-modal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2>Details for IP: <span id="modal-ip" class="ip-address"></span></h2>
+                <pre id="modal-details-content"></pre>
+            </div>
         </div>
     </div>
 
-    <!-- Include day.js for relative time formatting -->
-    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/relativeTime.js"></script>
     <script>
-        // Extend dayjs with the relativeTime plugin
+        // --- SETUP & STATE ---
         dayjs.extend(window.dayjs_plugin_relativeTime);
 
-        // Variables for managing the state
         const tableBody = document.getElementById('misp-table-body');
-        const loader = document.getElementById('loader');
-        const currentlyShowingEl = document.getElementById('currently-showing');
         const searchInput = document.getElementById('search-input');
+        const paginationControls = document.getElementById('pagination-controls');
+        const loader = document.getElementById('loader');
 
-        let page = 1; // Start with the first page
-        const limit = 50; // Fetch 50 results at a time
-        let isLoading = false;
-        let allResults = []; // Store all results loaded
+        // Form elements
+        const addIpForm = document.getElementById('add-ip-form');
+        const newIpInput = document.getElementById('new-ip-input');
+        const newEventInfoInput = document.getElementById('new-event-info-input');
+        const newCategoryInput = document.getElementById('new-category-input');
+        const newTypeInput = document.getElementById('new-type-input');
+        const formMessage = document.getElementById('form-message');
 
-        // Modal functionality
+        let currentPage = 1;
+        const limit = 25;
+        let totalResults = 0;
+        let totalPages = 0;
+        let currentSearchTerm = '';
+        let debounceTimer;
+
+        // --- MODAL LOGIC ---
         const modal = document.getElementById('details-modal');
-        const closeModal = document.getElementsByClassName('close')[0];
+        const closeModalBtn = document.querySelector('.close');
         const modalIp = document.getElementById('modal-ip');
-        const modalContent = document.getElementById('modal-content');
+        const modalDetailsContent = document.getElementById('modal-details-content');
 
-        closeModal.onclick = function() {
-            modal.style.display = 'none';
+        closeModalBtn.onclick = () => modal.style.display = 'none';
+        window.onclick = (event) => {
+            if (event.target === modal) modal.style.display = 'none';
         };
-
-        window.onclick = function(event) {
-            if (event.target === modal) {
-                modal.style.display = 'none';
-            }
-        };
-
-        // Show detailed result in the modal
         const showModal = (result) => {
             modalIp.textContent = result.ip;
-            modalContent.textContent = JSON.stringify(result, null, 2);
+            modalDetailsContent.textContent = JSON.stringify(result.response?.response || result, null, 2);
             modal.style.display = 'flex';
         };
 
-        // Fetch MISP results from the API
-        const fetchResults = async () => {
-            if (isLoading) return;
-            isLoading = true;
-            loader.style.display = 'block';
+        // --- DATA FETCHING & SAVING ---
+        const fetchResults = async (page = 1, searchTerm = '') => {
+            loader.classList.add('visible');
+            try {
+                const url = `/api/misp-results?page=${page}&limit=${limit}&searchTerm=${encodeURIComponent(searchTerm)}`;
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+                const data = await response.json();
+                totalResults = data.total;
+                totalPages = data.totalPages;
+                currentPage = data.currentPage;
+                currentSearchTerm = searchTerm;
+                renderResults(data.results);
+                renderPagination();
+                updateResultCount(data.results.length);
+            } catch (error) {
+                console.error('Failed to fetch results:', error);
+                tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--danger-color); padding: 40px;">Failed to load results. See console for details.</td></tr>`;
+            } finally {
+                loader.classList.remove('visible');
+            }
+        };
+
+        const handleFormSubmit = async (event) => {
+            event.preventDefault();
+            const ipToAdd = newIpInput.value.trim();
+            const eventInfo = newEventInfoInput.value.trim();
+            const category = newCategoryInput.value.trim();
+            const type = newTypeInput.value.trim();
+
+            if (!ipToAdd) return;
+
+            formMessage.textContent = 'Submitting...';
+            formMessage.className = 'form-status-message';
+            formMessage.style.display = 'block';
+
+            // Create a payload that mimics the structure of a real MISP attribute
+            const currentTime = String(Math.floor(Date.now() / 1000));
+            const newAttribute = {
+                value: ipToAdd,
+                event_id: 'manual',
+                category: category || 'External analysis',
+                type: type || 'ip-dst',
+                comment: 'Manually added entry.',
+                timestamp: currentTime,
+                last_seen: currentTime,
+                Event: {
+                    info: eventInfo || `Manual entry for ${ipToAdd}`
+                }
+            };
+
+            const payload = {
+                results: [{
+                    ip: ipToAdd,
+                    response: {
+                        response: {
+                            Attribute: [newAttribute]
+                        }
+                    }
+                }]
+            };
 
             try {
-                const response = await fetch(`/api/misp-results?page=${page}&limit=${limit}&searchTerm=${searchInput.value}`);
-                const newResults = await response.json();
+                const response = await fetch('/api/misp-results/upload', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message || 'Failed to save IP.');
 
-                if (newResults.results.length > 0) {
-                    // Append new results to the allResults array
-                    allResults = [...allResults, ...newResults.results];
-                    renderResults(allResults); // Re-render the table with all results
-                    page++;
+                formMessage.textContent = result.message || 'Successfully added IP!';
+                formMessage.className = 'form-status-message success';
+                addIpForm.reset();
+                fetchResults(1, ''); // Refresh table to page 1
 
-                    // Update the currently showing count
-                    currentlyShowingEl.textContent = allResults.length;
-                } else {
-                    window.removeEventListener('scroll', handleScroll);
-                    loader.textContent = 'No more results to load.';
-                }
             } catch (error) {
-                console.error('Failed to fetch more results:', error);
-                loader.textContent = 'Failed to load more results.';
-            } finally {
-                isLoading = false;
-                loader.style.display = 'none';
+                console.error('Submission Error:', error);
+                formMessage.textContent = error.message;
+                formMessage.className = 'form-status-message error';
             }
+
+            // Hide the message after a few seconds
+            setTimeout(() => {
+                formMessage.style.display = 'none';
+            }, 5000);
         };
 
-        // Handle infinite scrolling to load more results
-        const handleScroll = () => {
-            if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 100) {
-                fetchResults();
-            }
-        };
-
-        window.addEventListener('scroll', handleScroll);
-
-        // Render MISP results to the table
+        // --- UI RENDERING ---
         const renderResults = (results) => {
-            tableBody.innerHTML = ''; // Clear the table body
-
+            tableBody.innerHTML = '';
+            if (results.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 40px;">No results found.</td></tr>`;
+                return;
+            }
             const fragment = document.createDocumentFragment();
             results.forEach(result => {
+                const attributes = result.response?.response?.Attribute || [];
+                const hasMatch = attributes.length > 0;
+                const firstAttr = hasMatch ? attributes[0] : {};
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td>${result.ip}</td>
-                    <td>${result.event_id}</td>
-                    <td>${result.type}</td>
-                    <td>${result.category}</td>
-                    <td class="relative-time" data-date="${result.first_seen}">${dayjs(result.first_seen).fromNow()}</td>
-                    <td class="relative-time" data-date="${result.last_seen}">${dayjs(result.last_seen).fromNow()}</td>
-                    <td><button class="view-details-btn" data-ip="${result.ip}" data-result='${JSON.stringify(result)}'>View Details</button></td>
+                    <td class="ip-address">${result.ip}</td>
+                    <td>
+                        <span class="${hasMatch ? 'status-found' : 'status-not-found'}">
+                            ${hasMatch ? `Found (${attributes.length})` : 'Not Found'}
+                        </span>
+                    </td>
+                    <td>${hasMatch ? (firstAttr.Event?.info || 'N/A') : 'N/A'}</td>
+                    <td>${hasMatch ? `${firstAttr.category || 'N/A'} / ${firstAttr.type || 'N/A'}` : 'N/A'}</td>
+                    <td>
+                        ${hasMatch && firstAttr.last_seen ? `<span title="${new Date(parseInt(firstAttr.last_seen) * 1000).toUTCString()}">${dayjs(parseInt(firstAttr.last_seen) * 1000).fromNow()}</span>` : 'N/A'}
+                    </td>
+                    <td><button class="view-details-btn">View JSON</button></td>
                 `;
+                row.querySelector('.view-details-btn').addEventListener('click', () => showModal(result));
                 fragment.appendChild(row);
             });
             tableBody.appendChild(fragment);
+        };
 
-            // Add click event to "View Details" buttons
-            document.querySelectorAll('.view-details-btn').forEach(button => {
+        const renderPagination = () => {
+            paginationControls.innerHTML = '';
+            if (totalPages <= 1) return;
+
+            const createButton = (text, page, isDisabled = false, isActive = false, isEllipsis = false) => {
+                if (isEllipsis) {
+                    const span = document.createElement('span');
+                    span.className = 'pagination-ellipsis';
+                    span.textContent = '...';
+                    return span;
+                }
+                const button = document.createElement('button');
+                button.textContent = text;
+                button.className = 'pagination-btn';
+                if (isActive) button.classList.add('active');
+                button.disabled = isDisabled;
                 button.addEventListener('click', () => {
-                    const result = JSON.parse(button.getAttribute('data-result'));
-                    showModal(result);
+                    if (!isDisabled) fetchResults(page, currentSearchTerm);
                 });
+                return button;
+            };
+
+            paginationControls.appendChild(createButton('‹ Prev', currentPage - 1, currentPage === 1));
+
+            const pagesToShow = [];
+            if (totalPages <= 7) {
+                for (let i = 1; i <= totalPages; i++) pagesToShow.push(i);
+            } else {
+                pagesToShow.push(1);
+                if (currentPage > 3) pagesToShow.push('...');
+                const start = Math.max(2, currentPage - 1);
+                const end = Math.min(totalPages - 1, currentPage + 1);
+                for (let i = start; i <= end; i++) pagesToShow.push(i);
+                if (currentPage < totalPages - 2) pagesToShow.push('...');
+                pagesToShow.push(totalPages);
+            }
+
+            pagesToShow.forEach(p => {
+                if (typeof p === 'number') {
+                    paginationControls.appendChild(createButton(p, p, false, p === currentPage));
+                } else {
+                    paginationControls.appendChild(createButton(null, null, true, false, true));
+                }
             });
+
+            paginationControls.appendChild(createButton('Next ›', currentPage + 1, currentPage === totalPages));
         };
 
-        // Filter results based on search input
-        const filterResults = () => {
-            const searchTerm = searchInput.value.toLowerCase();
-            const filteredResults = allResults.filter(result => result.ip.toLowerCase().includes(searchTerm));
-            renderResults(filteredResults); // Re-render with the filtered results
+        const updateResultCount = (currentCount) => {
+            const from = totalResults === 0 ? 0 : (currentPage - 1) * limit + 1;
+            const to = from + currentCount - 1;
+            document.getElementById('result-count').textContent = `Showing ${from}–${to} of ${totalResults.toLocaleString()} results`;
         };
 
-        // Add an event listener for search input
-        searchInput.addEventListener('input', filterResults);
+        // --- EVENT LISTENERS ---
+        searchInput.addEventListener('input', (event) => {
+            const searchTerm = event.target.value.trim();
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                fetchResults(1, searchTerm);
+            }, 350);
+        });
 
-        // Initial load of results when the page is ready
-        document.addEventListener('DOMContentLoaded', fetchResults);
+        addIpForm.addEventListener('submit', handleFormSubmit);
+
+        // --- INITIAL LOAD ---
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchResults(currentPage, currentSearchTerm);
+        });
     </script>
 </body>
+
 </html>
