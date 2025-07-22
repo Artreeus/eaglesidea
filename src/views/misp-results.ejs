@@ -1,246 +1,224 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MISP Scan Results</title>
+    <title>MISP Intelligence Center</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body {
             font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
         }
-
-        .modal-bg {
-            background-color: rgba(0, 0, 0, 0.5);
+        .search-container {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 4rem 1rem;
+            border-radius: 1rem;
+            text-align: center;
+            color: white;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
         }
-
-        .modal-content {
-            max-height: 80vh;
+        .search-box {
+            display: flex;
+            align-items: center;
+            max-width: 600px;
+            margin: 1.5rem auto 0;
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 2rem;
+            padding: 0.5rem;
+            transition: all 0.3s ease;
+        }
+        .search-box:focus-within {
+            background-color: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.5);
+        }
+        .search-box i {
+            font-size: 1.5rem;
+            margin: 0 1rem;
+            color: #e0e0e0;
+        }
+        .search-box textarea {
+            background: transparent;
+            border: none;
+            color: white;
+            flex-grow: 1;
+            font-size: 1.125rem;
+            padding: 0.75rem 0;
+            resize: none;
+            outline: none;
+            /* --- CSS Change --- */
+            min-height: 50px; /* Set a minimum height */
+            overflow-y: hidden; /* Hide the scrollbar */
+        }
+        .search-box textarea::placeholder {
+            color: #d1d5db;
+        }
+        .scan-btn {
+            background-color: #ffffff;
+            color: #667eea;
+            font-weight: 700;
+            padding: 0.75rem 1.5rem;
+            border-radius: 9999px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+        .scan-btn:hover {
+            background-color: #f0f4f8;
+        }
+        .result-card {
+            background-color: white;
+            border-radius: 1rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+            margin-top: 2rem;
+            overflow: hidden;
+        }
+        .result-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .result-header.threat {
+            background-color: #fef2f2;
+            color: #991b1b;
+        }
+        .result-header.clean {
+            background-color: #f0fdf4;
+            color: #166534;
+        }
+        .result-header-content {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .result-header-content i {
+            font-size: 2rem;
+        }
+        .result-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+        .result-subtitle {
+            font-size: 1rem;
+            opacity: 0.8;
+        }
+        .threat-details {
+            padding: 1.5rem;
+        }
+        .threat-item {
+            border: 1px solid #e5e7eb;
+            border-radius: 0.75rem;
+            margin-bottom: 1rem;
+            padding: 1rem;
+            transition: all 0.2s ease;
+        }
+        .threat-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.1);
+        }
+        .threat-item h3 {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+        }
+        .threat-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            font-size: 0.875rem;
+            color: #4b5563;
+        }
+        .threat-info div {
+            background-color: #f9fafb;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            word-wrap: break-word;
+        }
+        .threat-info strong {
+            font-weight: 600;
+            color: #374151;
+            margin-right: 0.5rem;
+        }
+        #loader {
+            text-align: center;
+            padding: 2rem;
+        }
+        #initial-state {
+            text-align: center;
+            padding: 4rem;
+            color: #6b7280;
+        }
+        #initial-state i {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            color: #9ca3af;
         }
     </style>
 </head>
-
-<body class="bg-gray-100 text-gray-800">
+<body class="text-gray-800">
 
     <div class="container mx-auto px-4 py-8">
-        <header class="mb-8">
-            <h1 class="text-4xl font-bold text-gray-900">MISP Intelligence Center</h1>
-            <p class="text-lg text-gray-600 mt-2">Query the MISP database and review historical scan results.</p>
-            <a href="/" class="text-blue-600 hover:underline mt-4 inline-block">&larr; Back to Main IP List</a>
-        </header>
 
-        <!-- Manual Scan Section -->
-        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">On-Demand Scan</h2>
-            <p class="text-gray-600 mb-4">Enter one or more IPs (separated by new lines or commas) to scan them against
-                MISP immediately.</p>
-            <div id="manual-scan-form">
-                <textarea id="ip-list-input"
-                    class="w-full h-32 p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                    placeholder="8.8.8.8, 1.1.1.1&#10;192.168.1.1"></textarea>
-                <button id="manual-scan-btn"
-                    class="mt-4 px-6 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition w-full sm:w-auto">
-                    Scan Now
-                </button>
-            </div>
-            <div id="manual-results-container" class="mt-6 hidden">
-                <h3 class="text-xl font-bold text-gray-800 mb-4">Scan Results</h3>
-                <div id="manual-results-table" class="border border-gray-200 rounded-md overflow-hidden"></div>
-            </div>
-            <div id="manual-scan-loader" class="mt-6 hidden text-center">
-                <p class="text-lg text-gray-600">Scanning... this may take a moment.</p>
+        <div class="search-container">
+            <i class="fas fa-shield-alt" style="font-size: 3rem; margin-bottom: 1rem;"></i>
+            <h1 class="text-4xl font-bold">MISP Intelligence Center</h1>
+            <p class="text-lg opacity-90 mt-2">Enter one or more IPs (separated by new lines or commas) to scan them against the MISP database.</p>
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <textarea id="ip-list-input" placeholder="e.g., 8.8.8.8, 1.1.1.1" rows="1"></textarea>
+                <button id="manual-scan-btn" class="scan-btn">Scan</button>
             </div>
         </div>
 
-
-        <!-- Historical Results Section -->
-        <div class="bg-white rounded-lg shadow-md">
-            <div class="p-4 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-4">
-                <h2 class="text-2xl font-bold text-gray-800">Historical Scan Log</h2>
-                <div class="w-full sm:w-auto sm:max-w-xs">
-                    <input type="text" id="search-input" placeholder="Search by IP address..."
-                        class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+        <div id="results-area" class="mt-4">
+            <div id="initial-state">
+                <i class="fas fa-binoculars"></i>
+                <h2 class="text-2xl font-bold">Waiting for your command</h2>
+                <p class="text-lg mt-2">Your scan results will appear here.</p>
+            </div>
+            <div id="manual-scan-loader" class="hidden">
+                 <div id="loader" class="text-center py-8">
+                    <i class="fas fa-spinner fa-spin fa-3x text-blue-600"></i>
+                    <p class="text-lg text-gray-600 mt-4">Scanning... this may take a moment.</p>
                 </div>
             </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left">
-                    <thead class="bg-gray-50 border-b border-gray-200">
-                        <tr>
-                            <th class="px-6 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wider">IP
-                                Address</th>
-                            <th class="px-6 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wider">Scanned
-                                On</th>
-                            <th
-                                class="px-6 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wider text-center">
-                                Status</th>
-                            <th
-                                class="px-6 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wider text-center">
-                                Details</th>
-                        </tr>
-                    </thead>
-                    <tbody id="results-tbody" class="divide-y divide-gray-200">
-                        <!-- Rows will be inserted here by JavaScript -->
-                    </tbody>
-                </table>
-            </div>
-            <div id="loader" class="text-center py-8 hidden">
-                <p class="text-lg text-gray-600">Loading more results...</p>
-            </div>
-            <div id="no-more-results" class="text-center py-8 hidden">
-                <p class="text-lg text-gray-500">End of results.</p>
-            </div>
+            <div id="manual-results-container"></div>
         </div>
-    </div>
 
-    <!-- Details Modal -->
-    <div id="details-modal" class="fixed inset-0 modal-bg z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl">
-            <div class="p-6 border-b border-gray-200 flex justify-between items-center">
-                <h3 class="text-xl font-bold">MISP Attribute Details</h3>
-                <button id="close-modal-btn"
-                    class="text-gray-500 hover:text-gray-800 text-3xl leading-none">&times;</button>
-            </div>
-            <div class="p-6 modal-content overflow-y-auto">
-                <pre class="bg-gray-900 text-white text-sm rounded-md p-4"><code id="modal-json-content"></code></pre>
-            </div>
-        </div>
     </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // --- State Variables ---
-            const tbody = document.getElementById('results-tbody');
-            const loader = document.getElementById('loader');
-            const noMoreResultsEl = document.getElementById('no-more-results');
-            const searchInput = document.getElementById('search-input');
-            let currentPage = 1;
-            let isLoading = false;
-            let totalPages = 1;
-            let currentSearchTerm = '';
-
-            const createRowHTML = (result) => {
-                const attributes = result.response?.response?.Attribute || [];
-                const found = attributes.length > 0;
-                const statusClass = found ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800';
-                const statusText = found ? 'Threat Found' : 'Clean';
-
-                return `
-                    <tr class="hover:bg-gray-50">
-                        <td class="px-6 py-4 whitespace-nowrap"><div class="text-base font-mono text-gray-900">${result.ip}</div></td>
-                        <td class="px-6 py-4 whitespace-nowrap"><div class="text-base text-gray-700">${new Date(result.scannedAt).toLocaleString()}</div></td>
-                        <td class="px-6 py-4 whitespace-nowrap text-center"><span class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full ${statusClass}">${statusText}</span></td>
-                        <td class="px-6 py-4 whitespace-nowrap text-center">
-                            <button class="view-details-btn text-blue-600 hover:underline" data-details='${JSON.stringify(attributes)}'>View Details</button>
-                        </td>
-                    </tr>
-                `;
-            };
-
-            const loadResults = async () => {
-                if (isLoading || (currentPage > totalPages && totalPages !== 0)) {
-                    if (currentPage > totalPages) noMoreResultsEl.classList.remove('hidden');
-                    return;
-                }
-                isLoading = true;
-                loader.classList.remove('hidden');
-                noMoreResultsEl.classList.add('hidden');
-
-                try {
-                    const response = await fetch(`/api/misp-results?page=${currentPage}&searchTerm=${encodeURIComponent(currentSearchTerm)}`);
-                    const data = await response.json();
-
-                    if (data.results.length === 0 && currentPage === 1) {
-                        tbody.innerHTML = '<tr><td colspan="4" class="text-center py-12 text-gray-500">No results found.</td></tr>';
-                    } else {
-                        data.results.forEach(result => {
-                            tbody.innerHTML += createRowHTML(result);
-                        });
-                    }
-
-                    totalPages = data.totalPages;
-                    currentPage++;
-
-                    if (currentPage > totalPages && tbody.children.length > 0) {
-                        noMoreResultsEl.classList.remove('hidden');
-                    }
-                } catch (error) {
-                    console.error("Failed to load results:", error);
-                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-red-500">Failed to load results.</td></tr>';
-                } finally {
-                    isLoading = false;
-                    loader.classList.add('hidden');
-                }
-            };
-
-            // --- Debounce function to limit API calls while typing ---
-            const debounce = (func, delay) => {
-                let timeout;
-                return (...args) => {
-                    clearTimeout(timeout);
-                    timeout = setTimeout(() => func.apply(this, args), delay);
-                };
-            };
-
-            const handleSearch = () => {
-                currentSearchTerm = searchInput.value;
-                currentPage = 1;
-                totalPages = 1; // Reset to allow fetching
-                tbody.innerHTML = ''; // Clear previous results
-                noMoreResultsEl.classList.add('hidden');
-                loadResults();
-            };
-
-            searchInput.addEventListener('input', debounce(handleSearch, 500));
-
-            window.addEventListener('scroll', () => {
-                if (!isLoading && (window.innerHeight + window.scrollY) >= document.body.offsetHeight - 200) {
-                    loadResults();
-                }
-            });
-
-            loadResults(); // Initial load
-
-            // --- Modal Logic ---
-            const modal = document.getElementById('details-modal');
-            const closeModalBtn = document.getElementById('close-modal-btn');
-            const modalContent = document.getElementById('modal-json-content');
-
-            document.body.addEventListener('click', (e) => {
-                if (e.target.classList.contains('view-details-btn')) {
-                    const details = JSON.parse(e.target.dataset.details);
-                    modalContent.textContent = JSON.stringify(details, null, 2);
-                    modal.classList.remove('hidden');
-                }
-            });
-
-            closeModalBtn.addEventListener('click', () => modal.classList.add('hidden'));
-            modal.addEventListener('click', (e) => {
-                if (e.target === modal) {
-                    modal.classList.add('hidden');
-                }
-            });
-
-            // --- Manual Scan Logic ---
             const manualScanBtn = document.getElementById('manual-scan-btn');
             const ipListInput = document.getElementById('ip-list-input');
             const manualResultsContainer = document.getElementById('manual-results-container');
-            const manualResultsTable = document.getElementById('manual-results-table');
             const manualScanLoader = document.getElementById('manual-scan-loader');
+            const initialState = document.getElementById('initial-state');
 
-            manualScanBtn.addEventListener('click', async () => {
+            // --- JavaScript Change: Auto-growing textarea logic ---
+            ipListInput.addEventListener('input', () => {
+                ipListInput.style.height = 'auto'; // Reset height
+                ipListInput.style.height = (ipListInput.scrollHeight) + 'px'; // Set height to content height
+            });
+
+            const handleScan = async () => {
                 const ipsText = ipListInput.value.trim();
                 if (!ipsText) {
                     alert('Please enter at least one IP address.');
                     return;
                 }
 
-                const ips = ipsText.split(/[,\\s\\n]+/).filter(ip => ip);
+                const ips = ipsText.split(/[,\s\n]+/).filter(ip => ip);
 
+                initialState.classList.add('hidden');
                 manualScanLoader.classList.remove('hidden');
-                manualResultsContainer.classList.add('hidden');
+                manualResultsContainer.innerHTML = '';
                 manualScanBtn.disabled = true;
+                manualScanBtn.innerHTML = 'Scanning...';
+
 
                 try {
                     const response = await fetch('/api/misp-scan/manual', {
@@ -248,60 +226,104 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ ips })
                     });
-
+                    
                     if (!response.ok) {
-                        const err = await response.json();
-                        throw new Error(err.message || 'Manual scan failed.');
+                         const err = await response.json();
+                         throw new Error(err.message || 'The scan failed on the server.');
                     }
-
+                    
                     const results = await response.json();
                     displayManualResults(results, ips);
 
                 } catch (error) {
                     console.error("Manual scan error:", error);
-                    manualResultsTable.innerHTML = `<div class="p-4 text-red-600">${error.message}</div>`;
+                    manualResultsContainer.innerHTML = `<div class="p-4 my-4 text-center text-red-700 bg-red-100 rounded-lg">${error.message}</div>`;
                 } finally {
                     manualScanLoader.classList.add('hidden');
-                    manualResultsContainer.classList.remove('hidden');
                     manualScanBtn.disabled = false;
+                    manualScanBtn.innerHTML = 'Scan';
+                }
+            };
+
+            manualScanBtn.addEventListener('click', handleScan);
+            ipListInput.addEventListener('keydown', (e) => {
+                if (e.ctrlKey && e.key === 'Enter') {
+                    handleScan();
                 }
             });
 
-            const displayManualResults = (results, submittedIps) => {
-                let tableHTML = `
-                    <table class="w-full text-left">
-                        <thead class="bg-gray-50 border-b border-gray-200">
-                            <tr>
-                                <th class="px-6 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wider">IP Address</th>
-                                <th class="px-6 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wider text-center">Status</th>
-                                <th class="px-6 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wider text-center">Details</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-200">
-                `;
 
+            const displayManualResults = (results, submittedIps) => {
+                let resultsHTML = '';
                 const resultsByIp = new Map(results.map(r => [r.ip, r]));
 
                 submittedIps.forEach(ip => {
                     const result = resultsByIp.get(ip);
                     const attributes = result ? (result.response?.response?.Attribute || []) : [];
-                    const found = attributes.length > 0;
-                    const statusClass = found ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800';
-                    const statusText = found ? 'Threat Found' : 'Clean';
-                    tableHTML += `
-                        <tr class="hover:bg-gray-50">
-                            <td class="px-6 py-4"><div class="text-base font-mono text-gray-900">${ip}</div></td>
-                            <td class="px-6 py-4 text-center"><span class="px-3 py-1 text-sm font-semibold rounded-full ${statusClass}">${statusText}</span></td>
-                            <td class="px-6 py-4 text-center"><button class="view-details-btn text-blue-600 hover:underline" data-details='${JSON.stringify(attributes)}'>View Details</button></td>
-                        </tr>
+                    const isThreat = attributes.length > 0;
+
+                    if (isThreat) {
+                        resultsHTML += createThreatCard(ip, attributes);
+                    } else {
+                        resultsHTML += createCleanCard(ip);
+                    }
+                });
+                manualResultsContainer.innerHTML = resultsHTML;
+            };
+
+            const createCleanCard = (ip) => {
+                return `
+                    <div class="result-card">
+                        <div class="result-header clean">
+                            <div class="result-header-content">
+                                <i class="fas fa-check-circle"></i>
+                                <div>
+                                    <h2 class="result-title">${ip}</h2>
+                                    <p class="result-subtitle">Clean. No threats found in the MISP database.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            };
+
+            const createThreatCard = (ip, attributes) => {
+                let threatItemsHTML = '';
+                attributes.forEach(attr => {
+                    threatItemsHTML += `
+                        <div class="threat-item">
+                            <h3>Event: ${attr.Event.info}</h3>
+                            <div class="threat-info">
+                               <div><strong>Category:</strong> ${attr.category}</div>
+                               <div><strong>Type:</strong> ${attr.type}</div>
+                               <div><strong>Event ID:</strong> ${attr.event_id}</div>
+                               <div><strong>Timestamp:</strong> ${new Date(attr.timestamp * 1000).toLocaleString()}</div>
+                               <div><strong>Comment:</strong> ${attr.comment || 'N/A'}</div>
+                               <div><strong>UUID:</strong> ${attr.uuid}</div>
+                            </div>
+                        </div>
                     `;
                 });
 
-                tableHTML += '</tbody></table>';
-                manualResultsTable.innerHTML = tableHTML;
+                return `
+                    <div class="result-card">
+                        <div class="result-header threat">
+                            <div class="result-header-content">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <div>
+                                    <h2 class="result-title">${ip}</h2>
+                                    <p class="result-subtitle">${attributes.length} threat attribute(s) found.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="threat-details">
+                            ${threatItemsHTML}
+                        </div>
+                    </div>
+                `;
             };
+
         });
     </script>
 </body>
-
 </html>

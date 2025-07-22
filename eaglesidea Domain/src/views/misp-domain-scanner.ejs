@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MISP Domain Intelligence</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f0f4f8; }
+        .search-container { background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); padding: 4rem 1rem; border-radius: 1rem; text-align: center; color: white; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); }
+        .search-box { display: flex; align-items: center; max-width: 600px; margin: 1.5rem auto 0; background-color: rgba(255, 255, 255, 0.2); border-radius: 2rem; padding: 0.5rem; transition: all 0.3s ease; }
+        .search-box:focus-within { background-color: rgba(255, 255, 255, 0.3); box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.5); }
+        .search-box i { font-size: 1.5rem; margin: 0 1rem; color: #e0e0e0; }
+        .search-box textarea { background: transparent; border: none; color: white; flex-grow: 1; font-size: 1.125rem; padding: 0.75rem 0; resize: none; outline: none; min-height: 50px; overflow-y: hidden; }
+        .search-box textarea::placeholder { color: #d1d5db; }
+        .scan-btn { background-color: #ffffff; color: #4f46e5; font-weight: 700; padding: 0.75rem 1.5rem; border-radius: 9999px; border: none; cursor: pointer; transition: all 0.2s ease; white-space: nowrap; }
+        .scan-btn:hover { background-color: #f0f4f8; }
+        .result-card { background-color: white; border-radius: 1rem; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05); margin-top: 2rem; overflow: hidden; }
+        .result-header { padding: 1.5rem; border-bottom: 1px solid #e5e7eb; }
+        .result-header.threat { background-color: #fef2f2; color: #991b1b; }
+        .result-header.clean { background-color: #f0fdf4; color: #166534; }
+        .result-header-content { display: flex; align-items: center; gap: 1rem; }
+        .result-header-content i { font-size: 2rem; }
+        .result-title { font-size: 1.5rem; font-weight: 700; }
+        .result-subtitle { font-size: 1rem; opacity: 0.8; }
+        .threat-details { padding: 1.5rem; }
+        .threat-item { border: 1px solid #e5e7eb; border-radius: 0.75rem; margin-bottom: 1rem; padding: 1rem; }
+        .threat-info { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; font-size: 0.875rem; color: #4b5563; }
+        .threat-info div { background-color: #f9fafb; padding: 0.5rem 0.75rem; border-radius: 0.5rem; word-wrap: break-word; }
+        #initial-state { text-align: center; padding: 4rem; color: #6b7280; }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div class="container mx-auto px-4 py-8">
+
+        <div class="search-container">
+            <i class="fas fa-globe" style="font-size: 3rem; margin-bottom: 1rem;"></i>
+            <h1 class="text-4xl font-bold">MISP Domain Intelligence</h1>
+            <p class="text-lg opacity-90 mt-2">Enter domains (e.g., example.com) to scan against the MISP database.</p>
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <textarea id="domain-list-input" placeholder="e.g., evil-domain.com, another-bad-site.net" rows="1"></textarea>
+                <button id="manual-scan-btn" class="scan-btn">Scan Domains</button>
+            </div>
+        </div>
+
+        <div id="results-area" class="mt-4">
+            <div id="initial-state">
+                 <i class="fas fa-binoculars"></i>
+                 <h2 class="text-2xl font-bold">Your scan results will appear here.</h2>
+            </div>
+            <div id="manual-scan-loader" class="hidden text-center py-8">
+                 <i class="fas fa-spinner fa-spin fa-3x text-blue-600"></i>
+                 <p class="text-lg text-gray-600 mt-4">Scanning domains...</p>
+            </div>
+            <div id="manual-results-container"></div>
+        </div>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const scanBtn = document.getElementById('manual-scan-btn');
+            const domainInput = document.getElementById('domain-list-input');
+            const resultsContainer = document.getElementById('manual-results-container');
+            const loader = document.getElementById('manual-scan-loader');
+            const initialState = document.getElementById('initial-state');
+
+            domainInput.addEventListener('input', () => {
+                domainInput.style.height = 'auto';
+                domainInput.style.height = (domainInput.scrollHeight) + 'px';
+            });
+
+            const handleScan = async () => {
+                const domainsText = domainInput.value.trim();
+                if (!domainsText) {
+                    alert('Please enter at least one domain.');
+                    return;
+                }
+
+                const domains = domainsText.split(/[,\s\n]+/).filter(d => d);
+
+                initialState.classList.add('hidden');
+                loader.classList.remove('hidden');
+                resultsContainer.innerHTML = '';
+                scanBtn.disabled = true;
+                scanBtn.innerHTML = 'Scanning...';
+
+                try {
+                    const response = await fetch('/api/misp-scan/domain/manual', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ domains })
+                    });
+                    
+                    if (!response.ok) {
+                        const err = await response.json();
+                        throw new Error(err.message || 'Server-side scan failed.');
+                    }
+                    
+                    const results = await response.json();
+                    displayManualResults(results, domains);
+
+                } catch (error) {
+                    console.error("Manual domain scan error:", error);
+                    resultsContainer.innerHTML = `<div class="p-4 my-4 text-center text-red-700 bg-red-100 rounded-lg">${error.message}</div>`;
+                } finally {
+                    loader.classList.add('hidden');
+                    scanBtn.disabled = false;
+                    scanBtn.innerHTML = 'Scan Domains';
+                }
+            };
+
+            scanBtn.addEventListener('click', handleScan);
+            domainInput.addEventListener('keydown', (e) => {
+                if (e.ctrlKey && e.key === 'Enter') handleScan();
+            });
+
+            const displayManualResults = (results, submittedDomains) => {
+                const resultsByDomain = new Map(results.map(r => [r.domain, r]));
+                let html = '';
+
+                submittedDomains.forEach(domain => {
+                    const result = resultsByDomain.get(domain);
+                    const attributes = result ? (result.response?.response?.Attribute || []) : [];
+                    html += attributes.length > 0 ? createThreatCard(domain, attributes) : createCleanCard(domain);
+                });
+                resultsContainer.innerHTML = html;
+            };
+
+            const createCleanCard = (domain) => `
+                <div class="result-card mt-4">
+                    <div class="result-header clean"><div class="result-header-content">
+                        <i class="fas fa-check-circle"></i>
+                        <div><h2 class="result-title">${domain}</h2><p class="result-subtitle">Clean. No threats found.</p></div>
+                    </div></div>
+                </div>`;
+
+            const createThreatCard = (domain, attributes) => {
+                const itemsHTML = attributes.map(attr => `
+                    <div class="threat-item">
+                        <h3>Event: ${attr.Event.info}</h3>
+                        <div class="threat-info">
+                           <div><strong>Category:</strong> ${attr.category}</div>
+                           <div><strong>Type:</strong> ${attr.type}</div>
+                           <div><strong>Event ID:</strong> ${attr.event_id}</div>
+                           <div><strong>Comment:</strong> ${attr.comment || 'N/A'}</div>
+                        </div>
+                    </div>`).join('');
+
+                return `
+                    <div class="result-card mt-4">
+                        <div class="result-header threat"><div class="result-header-content">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <div><h2 class="result-title">${domain}</h2><p class="result-subtitle">${attributes.length} threat(s) found.</p></div>
+                        </div></div>
+                        <div class="threat-details">${itemsHTML}</div>
+                    </div>`;
+            };
+        });
+    </script>
+</body>
+</html>
