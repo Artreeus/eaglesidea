@@ -5,633 +5,301 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MISP Scan Results</title>
-    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/relativeTime.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --primary-color: #3b82f6;
-            --light-gray: #e5e7eb;
-            --medium-gray: #9ca3af;
-            --dark-gray: #374151;
-            --background-color: #f9fafb;
-            --white: #ffffff;
-            --danger-color: #ef4444;
-            --success-color: #22c55e;
-            --border-radius: 8px;
-        }
-
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            margin: 0;
-            padding: 1.5em;
-            background-color: var(--background-color);
-            color: var(--dark-gray);
+            font-family: 'Inter', sans-serif;
         }
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        h1 {
-            color: var(--dark-gray);
-            font-size: 2em;
-            margin-bottom: 0.5em;
-        }
-
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1.5em;
-            flex-wrap: wrap;
-            gap: 1em;
-        }
-
-        #result-count {
-            font-size: 1em;
-            color: var(--medium-gray);
-        }
-
-        .search-container {
-            position: relative;
-            flex-grow: 1;
-            min-width: 300px;
-        }
-
-        #search-input {
-            width: 100%;
-            padding: 12px 15px 12px 40px;
-            border: 1px solid var(--light-gray);
-            border-radius: var(--border-radius);
-            font-size: 1em;
-            box-sizing: border-box;
-            transition: border-color 0.2s, box-shadow 0.2s;
-        }
-
-        #search-input:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
-        }
-
-        .search-container::before {
-            content: '🔍';
-            position: absolute;
-            left: 15px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--medium-gray);
-        }
-
-        .add-new-container {
-            background-color: var(--white);
-            padding: 20px;
-            border-radius: var(--border-radius);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-            margin-bottom: 1.5em;
-        }
-
-        .add-new-container h3 {
-            margin-top: 0;
-            margin-bottom: 15px;
-        }
-
-        #add-ip-form {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-        }
-
-        .form-group {
-            display: flex;
-            flex-direction: column;
-        }
-
-        /* Span across all columns for the button */
-        .form-group.full-width {
-            grid-column: 1 / -1;
-            display: flex;
-            justify-content: flex-end;
-        }
-
-        #add-ip-form input {
-            width: 100%;
-            padding: 12px 15px;
-            border: 1px solid var(--light-gray);
-            border-radius: var(--border-radius);
-            font-size: 1em;
-            box-sizing: border-box;
-        }
-
-        #add-ip-form button {
-            background-color: var(--primary-color);
-            color: var(--white);
-            border: none;
-            padding: 12px 20px;
-            font-size: 1em;
-            font-weight: bold;
-            border-radius: var(--border-radius);
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-
-        #add-ip-form button:hover {
-            background-color: #2563eb;
-        }
-
-        .form-status-message {
-            margin-top: 10px;
-            font-weight: bold;
-            padding: 10px;
-            border-radius: 6px;
-            display: none;
-            /* Hidden by default */
-        }
-
-        .form-status-message.success {
-            display: block;
-            color: #155724;
-            background-color: #d4edda;
-            border: 1px solid #c3e6cb;
-        }
-
-        .form-status-message.error {
-            display: block;
-            color: #721c24;
-            background-color: #f8d7da;
-            border: 1px solid #f5c6cb;
-        }
-
-        .table-container {
-            position: relative;
-            border: 1px solid var(--light-gray);
-            border-radius: var(--border-radius);
-            overflow: hidden;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-        }
-
-        #loader {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(255, 255, 255, 0.8);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-weight: bold;
-            z-index: 10;
-            transition: opacity 0.3s;
-            pointer-events: none;
-            opacity: 0;
-        }
-
-        #loader.visible {
-            opacity: 1;
-            pointer-events: auto;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            background-color: var(--white);
-        }
-
-        th,
-        td {
-            border-bottom: 1px solid var(--light-gray);
-            padding: 14px 18px;
-            text-align: left;
-            vertical-align: middle;
-        }
-
-        th {
-            background-color: #f9fafb;
-            font-weight: 600;
-            font-size: 0.9em;
-            color: #6b7280;
-        }
-
-        tr:last-child td {
-            border-bottom: none;
-        }
-
-        tr:hover {
-            background-color: #f3f4f6;
-        }
-
-        .status-found {
-            color: var(--danger-color);
-            font-weight: bold;
-        }
-
-        .status-not-found {
-            color: var(--success-color);
-        }
-
-        .ip-address {
-            font-family: 'Courier New', Courier, monospace;
-            font-weight: bold;
-            font-size: 1.1em;
-        }
-
-        .view-details-btn {
-            background-color: transparent;
-            color: var(--primary-color);
-            border: none;
-            padding: 5px;
-            font-weight: bold;
-            cursor: pointer;
-            border-radius: 4px;
-        }
-
-        .view-details-btn:hover {
-            text-decoration: underline;
-        }
-
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.6);
-            justify-content: center;
-            align-items: center;
+        .modal-bg {
+            background-color: rgba(0, 0, 0, 0.5);
         }
 
         .modal-content {
-            background-color: white;
-            padding: 25px;
-            border-radius: var(--border-radius);
-            max-width: 800px;
-            width: 90%;
-            position: relative;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
-        }
-
-        .close {
-            position: absolute;
-            top: 10px;
-            right: 20px;
-            font-size: 1.8em;
-            color: var(--medium-gray);
-            cursor: pointer;
-            font-weight: bold;
-        }
-
-        .close:hover {
-            color: var(--dark-gray);
-        }
-
-        #modal-details-content {
-            background-color: #f3f4f6;
-            padding: 15px;
-            border-radius: 6px;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            max-height: 60vh;
-            overflow-y: auto;
-        }
-
-        #pagination-controls {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 25px 0;
-            gap: 8px;
-        }
-
-        .pagination-btn {
-            background-color: var(--white);
-            border: 1px solid var(--light-gray);
-            color: var(--dark-gray);
-            padding: 8px 14px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.9em;
-            transition: background-color 0.2s, border-color 0.2s;
-        }
-
-        .pagination-btn:hover {
-            background-color: #f3f4f6;
-            border-color: #d1d5db;
-        }
-
-        .pagination-btn:disabled {
-            color: var(--medium-gray);
-            cursor: not-allowed;
-            background-color: var(--background-color);
-        }
-
-        .pagination-btn.active {
-            background-color: var(--primary-color);
-            color: var(--white);
-            border-color: var(--primary-color);
-        }
-
-        .pagination-ellipsis {
-            padding: 8px 0;
-            color: var(--medium-gray);
+            max-height: 80vh;
         }
     </style>
 </head>
 
-<body>
-    <div class="container">
-        <h1>MISP Scan Results</h1>
-        <div class="header">
-            <div id="result-count">Calculating...</div>
-            <div class="search-container">
-                <input type="text" id="search-input" placeholder="Search by IP address..." />
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto px-4 py-8">
+        <header class="mb-8">
+            <h1 class="text-4xl font-bold text-gray-900">MISP Intelligence Center</h1>
+            <p class="text-lg text-gray-600 mt-2">Query the MISP database and review historical scan results.</p>
+            <a href="/" class="text-blue-600 hover:underline mt-4 inline-block">&larr; Back to Main IP List</a>
+        </header>
+
+        <!-- Manual Scan Section -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">On-Demand Scan</h2>
+            <p class="text-gray-600 mb-4">Enter one or more IPs (separated by new lines or commas) to scan them against
+                MISP immediately.</p>
+            <div id="manual-scan-form">
+                <textarea id="ip-list-input"
+                    class="w-full h-32 p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                    placeholder="8.8.8.8, 1.1.1.1&#10;192.168.1.1"></textarea>
+                <button id="manual-scan-btn"
+                    class="mt-4 px-6 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition w-full sm:w-auto">
+                    Scan Now
+                </button>
+            </div>
+            <div id="manual-results-container" class="mt-6 hidden">
+                <h3 class="text-xl font-bold text-gray-800 mb-4">Scan Results</h3>
+                <div id="manual-results-table" class="border border-gray-200 rounded-md overflow-hidden"></div>
+            </div>
+            <div id="manual-scan-loader" class="mt-6 hidden text-center">
+                <p class="text-lg text-gray-600">Scanning... this may take a moment.</p>
             </div>
         </div>
 
-        <div class="add-new-container">
-            <h3>Add New / Update IP with Details</h3>
-            <form id="add-ip-form">
-                <div class="form-group">
-                    <input type="text" id="new-ip-input" placeholder="IP Address*" required>
+
+        <!-- Historical Results Section -->
+        <div class="bg-white rounded-lg shadow-md">
+            <div class="p-4 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-4">
+                <h2 class="text-2xl font-bold text-gray-800">Historical Scan Log</h2>
+                <div class="w-full sm:w-auto sm:max-w-xs">
+                    <input type="text" id="search-input" placeholder="Search by IP address..."
+                        class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
                 </div>
-                <div class="form-group">
-                    <input type="text" id="new-event-info-input" placeholder="Event Info">
-                </div>
-                <div class="form-group">
-                    <input type="text" id="new-category-input" placeholder="Category">
-                </div>
-                <div class="form-group">
-                    <input type="text" id="new-type-input" placeholder="Type">
-                </div>
-                <div class="form-group full-width">
-                    <button type="submit">Add to Database</button>
-                </div>
-            </form>
-            <div id="form-message" class="form-status-message"></div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left">
+                    <thead class="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                            <th class="px-6 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wider">IP
+                                Address</th>
+                            <th class="px-6 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wider">Scanned
+                                On</th>
+                            <th
+                                class="px-6 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wider text-center">
+                                Status</th>
+                            <th
+                                class="px-6 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wider text-center">
+                                Details</th>
+                        </tr>
+                    </thead>
+                    <tbody id="results-tbody" class="divide-y divide-gray-200">
+                        <!-- Rows will be inserted here by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+            <div id="loader" class="text-center py-8 hidden">
+                <p class="text-lg text-gray-600">Loading more results...</p>
+            </div>
+            <div id="no-more-results" class="text-center py-8 hidden">
+                <p class="text-lg text-gray-500">End of results.</p>
+            </div>
         </div>
+    </div>
 
-        <div class="table-container">
-            <div id="loader">Loading...</div>
-            <table id="misp-table">
-                <thead>
-                    <tr>
-                        <th>IP Address</th>
-                        <th>Status</th>
-                        <th>Event Info</th>
-                        <th>Category / Type</th>
-                        <th>Last Seen in MISP</th>
-                        <th>Details</th>
-                    </tr>
-                </thead>
-                <tbody id="misp-table-body"></tbody>
-            </table>
-        </div>
-
-        <div id="pagination-controls"></div>
-
-        <div id="details-modal" class="modal">
-            <div class="modal-content">
-                <span class="close">&times;</span>
-                <h2>Details for IP: <span id="modal-ip" class="ip-address"></span></h2>
-                <pre id="modal-details-content"></pre>
+    <!-- Details Modal -->
+    <div id="details-modal" class="fixed inset-0 modal-bg z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl">
+            <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+                <h3 class="text-xl font-bold">MISP Attribute Details</h3>
+                <button id="close-modal-btn"
+                    class="text-gray-500 hover:text-gray-800 text-3xl leading-none">&times;</button>
+            </div>
+            <div class="p-6 modal-content overflow-y-auto">
+                <pre class="bg-gray-900 text-white text-sm rounded-md p-4"><code id="modal-json-content"></code></pre>
             </div>
         </div>
     </div>
 
     <script>
-        // --- SETUP & STATE ---
-        dayjs.extend(window.dayjs_plugin_relativeTime);
-
-        const tableBody = document.getElementById('misp-table-body');
-        const searchInput = document.getElementById('search-input');
-        const paginationControls = document.getElementById('pagination-controls');
-        const loader = document.getElementById('loader');
-
-        // Form elements
-        const addIpForm = document.getElementById('add-ip-form');
-        const newIpInput = document.getElementById('new-ip-input');
-        const newEventInfoInput = document.getElementById('new-event-info-input');
-        const newCategoryInput = document.getElementById('new-category-input');
-        const newTypeInput = document.getElementById('new-type-input');
-        const formMessage = document.getElementById('form-message');
-
-        let currentPage = 1;
-        const limit = 25;
-        let totalResults = 0;
-        let totalPages = 0;
-        let currentSearchTerm = '';
-        let debounceTimer;
-
-        // --- MODAL LOGIC ---
-        const modal = document.getElementById('details-modal');
-        const closeModalBtn = document.querySelector('.close');
-        const modalIp = document.getElementById('modal-ip');
-        const modalDetailsContent = document.getElementById('modal-details-content');
-
-        closeModalBtn.onclick = () => modal.style.display = 'none';
-        window.onclick = (event) => {
-            if (event.target === modal) modal.style.display = 'none';
-        };
-        const showModal = (result) => {
-            modalIp.textContent = result.ip;
-            modalDetailsContent.textContent = JSON.stringify(result.response?.response || result, null, 2);
-            modal.style.display = 'flex';
-        };
-
-        // --- DATA FETCHING & SAVING ---
-        const fetchResults = async (page = 1, searchTerm = '') => {
-            loader.classList.add('visible');
-            try {
-                const url = `/api/misp-results?page=${page}&limit=${limit}&searchTerm=${encodeURIComponent(searchTerm)}`;
-                const response = await fetch(url);
-                if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
-                const data = await response.json();
-                totalResults = data.total;
-                totalPages = data.totalPages;
-                currentPage = data.currentPage;
-                currentSearchTerm = searchTerm;
-                renderResults(data.results);
-                renderPagination();
-                updateResultCount(data.results.length);
-            } catch (error) {
-                console.error('Failed to fetch results:', error);
-                tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--danger-color); padding: 40px;">Failed to load results. See console for details.</td></tr>`;
-            } finally {
-                loader.classList.remove('visible');
-            }
-        };
-
-        const handleFormSubmit = async (event) => {
-            event.preventDefault();
-            const ipToAdd = newIpInput.value.trim();
-            const eventInfo = newEventInfoInput.value.trim();
-            const category = newCategoryInput.value.trim();
-            const type = newTypeInput.value.trim();
-
-            if (!ipToAdd) return;
-
-            formMessage.textContent = 'Submitting...';
-            formMessage.className = 'form-status-message';
-            formMessage.style.display = 'block';
-
-            // Create a payload that mimics the structure of a real MISP attribute
-            const currentTime = String(Math.floor(Date.now() / 1000));
-            const newAttribute = {
-                value: ipToAdd,
-                event_id: 'manual',
-                category: category || 'External analysis',
-                type: type || 'ip-dst',
-                comment: 'Manually added entry.',
-                timestamp: currentTime,
-                last_seen: currentTime,
-                Event: {
-                    info: eventInfo || `Manual entry for ${ipToAdd}`
-                }
-            };
-
-            const payload = {
-                results: [{
-                    ip: ipToAdd,
-                    response: {
-                        response: {
-                            Attribute: [newAttribute]
-                        }
-                    }
-                }]
-            };
-
-            try {
-                const response = await fetch('/api/misp-results/upload', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(payload)
-                });
-                const result = await response.json();
-                if (!response.ok) throw new Error(result.message || 'Failed to save IP.');
-
-                formMessage.textContent = result.message || 'Successfully added IP!';
-                formMessage.className = 'form-status-message success';
-                addIpForm.reset();
-                fetchResults(1, ''); // Refresh table to page 1
-
-            } catch (error) {
-                console.error('Submission Error:', error);
-                formMessage.textContent = error.message;
-                formMessage.className = 'form-status-message error';
-            }
-
-            // Hide the message after a few seconds
-            setTimeout(() => {
-                formMessage.style.display = 'none';
-            }, 5000);
-        };
-
-        // --- UI RENDERING ---
-        const renderResults = (results) => {
-            tableBody.innerHTML = '';
-            if (results.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 40px;">No results found.</td></tr>`;
-                return;
-            }
-            const fragment = document.createDocumentFragment();
-            results.forEach(result => {
-                const attributes = result.response?.response?.Attribute || [];
-                const hasMatch = attributes.length > 0;
-                const firstAttr = hasMatch ? attributes[0] : {};
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td class="ip-address">${result.ip}</td>
-                    <td>
-                        <span class="${hasMatch ? 'status-found' : 'status-not-found'}">
-                            ${hasMatch ? `Found (${attributes.length})` : 'Not Found'}
-                        </span>
-                    </td>
-                    <td>${hasMatch ? (firstAttr.Event?.info || 'N/A') : 'N/A'}</td>
-                    <td>${hasMatch ? `${firstAttr.category || 'N/A'} / ${firstAttr.type || 'N/A'}` : 'N/A'}</td>
-                    <td>
-                        ${hasMatch && firstAttr.last_seen ? `<span title="${new Date(parseInt(firstAttr.last_seen) * 1000).toUTCString()}">${dayjs(parseInt(firstAttr.last_seen) * 1000).fromNow()}</span>` : 'N/A'}
-                    </td>
-                    <td><button class="view-details-btn">View JSON</button></td>
-                `;
-                row.querySelector('.view-details-btn').addEventListener('click', () => showModal(result));
-                fragment.appendChild(row);
-            });
-            tableBody.appendChild(fragment);
-        };
-
-        const renderPagination = () => {
-            paginationControls.innerHTML = '';
-            if (totalPages <= 1) return;
-
-            const createButton = (text, page, isDisabled = false, isActive = false, isEllipsis = false) => {
-                if (isEllipsis) {
-                    const span = document.createElement('span');
-                    span.className = 'pagination-ellipsis';
-                    span.textContent = '...';
-                    return span;
-                }
-                const button = document.createElement('button');
-                button.textContent = text;
-                button.className = 'pagination-btn';
-                if (isActive) button.classList.add('active');
-                button.disabled = isDisabled;
-                button.addEventListener('click', () => {
-                    if (!isDisabled) fetchResults(page, currentSearchTerm);
-                });
-                return button;
-            };
-
-            paginationControls.appendChild(createButton('‹ Prev', currentPage - 1, currentPage === 1));
-
-            const pagesToShow = [];
-            if (totalPages <= 7) {
-                for (let i = 1; i <= totalPages; i++) pagesToShow.push(i);
-            } else {
-                pagesToShow.push(1);
-                if (currentPage > 3) pagesToShow.push('...');
-                const start = Math.max(2, currentPage - 1);
-                const end = Math.min(totalPages - 1, currentPage + 1);
-                for (let i = start; i <= end; i++) pagesToShow.push(i);
-                if (currentPage < totalPages - 2) pagesToShow.push('...');
-                pagesToShow.push(totalPages);
-            }
-
-            pagesToShow.forEach(p => {
-                if (typeof p === 'number') {
-                    paginationControls.appendChild(createButton(p, p, false, p === currentPage));
-                } else {
-                    paginationControls.appendChild(createButton(null, null, true, false, true));
-                }
-            });
-
-            paginationControls.appendChild(createButton('Next ›', currentPage + 1, currentPage === totalPages));
-        };
-
-        const updateResultCount = (currentCount) => {
-            const from = totalResults === 0 ? 0 : (currentPage - 1) * limit + 1;
-            const to = from + currentCount - 1;
-            document.getElementById('result-count').textContent = `Showing ${from}–${to} of ${totalResults.toLocaleString()} results`;
-        };
-
-        // --- EVENT LISTENERS ---
-        searchInput.addEventListener('input', (event) => {
-            const searchTerm = event.target.value.trim();
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-                fetchResults(1, searchTerm);
-            }, 350);
-        });
-
-        addIpForm.addEventListener('submit', handleFormSubmit);
-
-        // --- INITIAL LOAD ---
         document.addEventListener('DOMContentLoaded', () => {
-            fetchResults(currentPage, currentSearchTerm);
+            // --- State Variables ---
+            const tbody = document.getElementById('results-tbody');
+            const loader = document.getElementById('loader');
+            const noMoreResultsEl = document.getElementById('no-more-results');
+            const searchInput = document.getElementById('search-input');
+            let currentPage = 1;
+            let isLoading = false;
+            let totalPages = 1;
+            let currentSearchTerm = '';
+
+            const createRowHTML = (result) => {
+                const attributes = result.response?.response?.Attribute || [];
+                const found = attributes.length > 0;
+                const statusClass = found ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800';
+                const statusText = found ? 'Threat Found' : 'Clean';
+
+                return `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 whitespace-nowrap"><div class="text-base font-mono text-gray-900">${result.ip}</div></td>
+                        <td class="px-6 py-4 whitespace-nowrap"><div class="text-base text-gray-700">${new Date(result.scannedAt).toLocaleString()}</div></td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center"><span class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full ${statusClass}">${statusText}</span></td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                            <button class="view-details-btn text-blue-600 hover:underline" data-details='${JSON.stringify(attributes)}'>View Details</button>
+                        </td>
+                    </tr>
+                `;
+            };
+
+            const loadResults = async () => {
+                if (isLoading || (currentPage > totalPages && totalPages !== 0)) {
+                    if (currentPage > totalPages) noMoreResultsEl.classList.remove('hidden');
+                    return;
+                }
+                isLoading = true;
+                loader.classList.remove('hidden');
+                noMoreResultsEl.classList.add('hidden');
+
+                try {
+                    const response = await fetch(`/api/misp-results?page=${currentPage}&searchTerm=${encodeURIComponent(currentSearchTerm)}`);
+                    const data = await response.json();
+
+                    if (data.results.length === 0 && currentPage === 1) {
+                        tbody.innerHTML = '<tr><td colspan="4" class="text-center py-12 text-gray-500">No results found.</td></tr>';
+                    } else {
+                        data.results.forEach(result => {
+                            tbody.innerHTML += createRowHTML(result);
+                        });
+                    }
+
+                    totalPages = data.totalPages;
+                    currentPage++;
+
+                    if (currentPage > totalPages && tbody.children.length > 0) {
+                        noMoreResultsEl.classList.remove('hidden');
+                    }
+                } catch (error) {
+                    console.error("Failed to load results:", error);
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-red-500">Failed to load results.</td></tr>';
+                } finally {
+                    isLoading = false;
+                    loader.classList.add('hidden');
+                }
+            };
+
+            // --- Debounce function to limit API calls while typing ---
+            const debounce = (func, delay) => {
+                let timeout;
+                return (...args) => {
+                    clearTimeout(timeout);
+                    timeout = setTimeout(() => func.apply(this, args), delay);
+                };
+            };
+
+            const handleSearch = () => {
+                currentSearchTerm = searchInput.value;
+                currentPage = 1;
+                totalPages = 1; // Reset to allow fetching
+                tbody.innerHTML = ''; // Clear previous results
+                noMoreResultsEl.classList.add('hidden');
+                loadResults();
+            };
+
+            searchInput.addEventListener('input', debounce(handleSearch, 500));
+
+            window.addEventListener('scroll', () => {
+                if (!isLoading && (window.innerHeight + window.scrollY) >= document.body.offsetHeight - 200) {
+                    loadResults();
+                }
+            });
+
+            loadResults(); // Initial load
+
+            // --- Modal Logic ---
+            const modal = document.getElementById('details-modal');
+            const closeModalBtn = document.getElementById('close-modal-btn');
+            const modalContent = document.getElementById('modal-json-content');
+
+            document.body.addEventListener('click', (e) => {
+                if (e.target.classList.contains('view-details-btn')) {
+                    const details = JSON.parse(e.target.dataset.details);
+                    modalContent.textContent = JSON.stringify(details, null, 2);
+                    modal.classList.remove('hidden');
+                }
+            });
+
+            closeModalBtn.addEventListener('click', () => modal.classList.add('hidden'));
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.classList.add('hidden');
+                }
+            });
+
+            // --- Manual Scan Logic ---
+            const manualScanBtn = document.getElementById('manual-scan-btn');
+            const ipListInput = document.getElementById('ip-list-input');
+            const manualResultsContainer = document.getElementById('manual-results-container');
+            const manualResultsTable = document.getElementById('manual-results-table');
+            const manualScanLoader = document.getElementById('manual-scan-loader');
+
+            manualScanBtn.addEventListener('click', async () => {
+                const ipsText = ipListInput.value.trim();
+                if (!ipsText) {
+                    alert('Please enter at least one IP address.');
+                    return;
+                }
+
+                const ips = ipsText.split(/[,\\s\\n]+/).filter(ip => ip);
+
+                manualScanLoader.classList.remove('hidden');
+                manualResultsContainer.classList.add('hidden');
+                manualScanBtn.disabled = true;
+
+                try {
+                    const response = await fetch('/api/misp-scan/manual', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ips })
+                    });
+
+                    if (!response.ok) {
+                        const err = await response.json();
+                        throw new Error(err.message || 'Manual scan failed.');
+                    }
+
+                    const results = await response.json();
+                    displayManualResults(results, ips);
+
+                } catch (error) {
+                    console.error("Manual scan error:", error);
+                    manualResultsTable.innerHTML = `<div class="p-4 text-red-600">${error.message}</div>`;
+                } finally {
+                    manualScanLoader.classList.add('hidden');
+                    manualResultsContainer.classList.remove('hidden');
+                    manualScanBtn.disabled = false;
+                }
+            });
+
+            const displayManualResults = (results, submittedIps) => {
+                let tableHTML = `
+                    <table class="w-full text-left">
+                        <thead class="bg-gray-50 border-b border-gray-200">
+                            <tr>
+                                <th class="px-6 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wider">IP Address</th>
+                                <th class="px-6 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wider text-center">Status</th>
+                                <th class="px-6 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wider text-center">Details</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">
+                `;
+
+                const resultsByIp = new Map(results.map(r => [r.ip, r]));
+
+                submittedIps.forEach(ip => {
+                    const result = resultsByIp.get(ip);
+                    const attributes = result ? (result.response?.response?.Attribute || []) : [];
+                    const found = attributes.length > 0;
+                    const statusClass = found ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800';
+                    const statusText = found ? 'Threat Found' : 'Clean';
+                    tableHTML += `
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4"><div class="text-base font-mono text-gray-900">${ip}</div></td>
+                            <td class="px-6 py-4 text-center"><span class="px-3 py-1 text-sm font-semibold rounded-full ${statusClass}">${statusText}</span></td>
+                            <td class="px-6 py-4 text-center"><button class="view-details-btn text-blue-600 hover:underline" data-details='${JSON.stringify(attributes)}'>View Details</button></td>
+                        </tr>
+                    `;
+                });
+
+                tableHTML += '</tbody></table>';
+                manualResultsTable.innerHTML = tableHTML;
+            };
         });
     </script>
 </body>

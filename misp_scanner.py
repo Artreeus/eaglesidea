@@ -185,25 +185,24 @@
 
 
 
-
-
+# misp_scanner.py
 import aiohttp
 import asyncio
 import json
-import time
+import sys
 import os
 
 # Suppress HTTPS warnings
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# Configuration
+# --- Configuration ---
 MISP_URL = 'https://113.11.106.78:8081'
 API_KEY = 'peUBlSbd2Cx4YsW18DFJXwNuBSX6nbuusgpLZeas'
 VERIFY_SSL = False
 
-EXPRESS_API_BASE = 'http://localhost:3000'
-IP_ENDPOINT = f'{EXPRESS_API_BASE}/api/ips'
+# This is the endpoint in your Node.js app where we will send the results
+NODE_API_ENDPOINT = 'http://localhost:3000/api/misp-results/upload'
 
 misp_headers = {
     'Authorization': API_KEY,
@@ -211,128 +210,87 @@ misp_headers = {
     'Content-Type': 'application/json',
 }
 
-output_file = 'misp_responses.json'
-
-# Load existing results if file exists
-if os.path.exists(output_file):
-    with open(output_file, 'r') as f:
-        all_responses = json.load(f)
-        scanned_ips = {entry['ip'] for entry in all_responses}
-else:
-    all_responses = []
-    scanned_ips = set()
-
-page = 1
-limit = 50
-
-async def fetch_ip_data(session, page, limit):
-    try:
-        async with session.get(IP_ENDPOINT, params={'page': page, 'limit': limit}) as response:
-            response.raise_for_status()
-            return await response.json()
-    except Exception as e:
-        print(f"❌ Error fetching IP data for page {page}: {str(e)}")
-        return []
-
 async def fetch_misp_data(session, ips):
+    """Sends a list of IPs to the MISP server for searching."""
     try:
         payload = {
             "returnFormat": "json",
             "type": ["ip-src", "ip-dst", "ip-src|ip-dst"],
-            "value": ips  # <-- Sending list of IPs
+            "value": ips
         }
-        async with session.post(f"{MISP_URL}/attributes/restSearch", headers=misp_headers, json=payload, verify=VERIFY_SSL) as misp_resp:
-            misp_resp.raise_for_status()
+        # Note: aiohttp uses `ssl` parameter instead of `verify`
+        async with session.post(f"{MISP_URL}/attributes/restSearch", headers=misp_headers, json=payload, ssl=VERIFY_SSL) as misp_resp:
+            if misp_resp.status != 200:
+                print(f"ERROR: MISP server returned error {misp_resp.status}: {await misp_resp.text()}")
+                return {}
             return await misp_resp.json()
     except Exception as e:
-        print(f"❌ Error fetching MISP data: {str(e)}")
+        print(f"ERROR: Could not fetch MISP data: {str(e)}")
         return {}
 
-async def main():
-    global page
+async def send_results_to_node(session, results):
+    """Posts the formatted scan results back to the Node.js application."""
+    if not results:
+        print("INFO: No results to send to Node.js.")
+        return
+
+    try:
+        payload = {"results": results}
+        async with session.post(NODE_API_ENDPOINT, json=payload) as response:
+            if response.status == 200:
+                print(f"SUCCESS: Sent {len(results)} results to Node.js.")
+            else:
+                print(f"ERROR: Failed to send results to Node.js. Status: {response.status}, Response: {await response.text()}")
+    except Exception as e:
+        print(f"ERROR: Failed to send results to Node.js: {str(e)}")
+
+
+async def main(ips_to_scan):
+    """Main function to process IPs and send results."""
     async with aiohttp.ClientSession() as session:
-        while True:
-            print(f"\n📦 Fetching page {page} of IPs...")
-            ip_data = await fetch_ip_data(session, page, limit)
+        print(f"INFO: Sending {len(ips_to_scan)} IPs to MISP...")
 
-            if not ip_data:
-                print("✅ No more IPs to process.")
-                break
+        misp_data = await fetch_misp_data(session, ips_to_scan)
+        attributes = misp_data.get('response', {}).get('Attribute', [])
 
-            new_ips = [ip['ip'] for ip in ip_data if ip['ip'] not in scanned_ips]
-            if not new_ips:
-                print("⚠️ All IPs in this page already scanned.")
-                page += 1
-                continue
+        # Create a lookup: ip => list of matching attributes
+        ip_matches = {}
+        for attr in attributes:
+            val = attr.get('value')
+            if val not in ip_matches:
+                ip_matches[val] = []
+            ip_matches[val].append(attr)
 
-            print(f"🔄 Sending {len(new_ips)} IPs to MISP in bulk...")
-
-            misp_data = await fetch_misp_data(session, new_ips)
-            attributes = misp_data.get('response', {}).get('Attribute', [])
-
-            # Create a lookup: ip => list of matching attributes
-            ip_matches = {}
-            for attr in attributes:
-                val = attr.get('value')
-                if val not in ip_matches:
-                    ip_matches[val] = []
-
-                ip_matches[val].append({
-                    "id": attr.get('id'),
-                    "event_id": attr.get('event_id'),
-                    "object_id": attr.get('object_id'),
-                    "object_relation": attr.get('object_relation', None),
-                    "category": attr.get('category'),
-                    "type": attr.get('type'),
-                    "to_ids": attr.get('to_ids', False),
-                    "uuid": attr.get('uuid'),
-                    "timestamp": attr.get('timestamp'),
-                    "distribution": attr.get('distribution'),
-                    "sharing_group_id": attr.get('sharing_group_id'),
-                    "comment": attr.get('comment', ''),
-                    "deleted": attr.get('deleted', False),
-                    "disable_correlation": attr.get('disable_correlation', False),
-                    "first_seen": attr.get('first_seen'),
-                    "last_seen": attr.get('last_seen'),
-                    "value": attr.get('value'),
-                    "Event": {
-                        "org_id": attr.get('Event', {}).get('org_id'),
-                        "distribution": attr.get('Event', {}).get('distribution'),
-                        "publish_timestamp": attr.get('Event', {}).get('publish_timestamp'),
-                        "id": attr.get('Event', {}).get('id'),
-                        "info": attr.get('Event', {}).get('info'),
-                        "orgc_id": attr.get('Event', {}).get('orgc_id'),
-                        "uuid": attr.get('Event', {}).get('uuid'),
-                        "user_id": attr.get('Event', {}).get('user_id')
-                    },
-                    "Tag": attr.get('Tag', [])
-                })
-
-            # Record results for all IPs in the page
-            for ip in new_ips:
-                result = {
-                    "ip": ip,
+        # Format results for all IPs that were scanned
+        all_results = []
+        for ip in ips_to_scan:
+            result = {
+                "ip": ip,
+                "response": {
                     "response": {
-                        "response": {
-                            "Attribute": ip_matches.get(ip, [])
-                        }
+                        "Attribute": ip_matches.get(ip, [])
                     }
                 }
-                all_responses.append(result)
-                scanned_ips.add(ip)
+            }
+            all_results.append(result)
+            if result["response"]["response"]["Attribute"]:
+                print(f"FOUND: {ip} was found in MISP.")
+            else:
+                print(f"NOT FOUND: {ip} was not found in MISP.")
+        
+        # Send the compiled results back to your Node.js app
+        await send_results_to_node(session, all_results)
 
-                if result["response"]["response"]["Attribute"]:
-                    print(f"⚠️ {ip} found in MISP with {len(result['response']['response']['Attribute'])} match(es).")
-                else:
-                    print(f"✅ {ip} not found in MISP.")
 
-            # Save file after each page
-            with open(output_file, 'w') as f:
-                json.dump(all_responses, f, indent=4)
-
-            page += 1
-            await asyncio.sleep(2)  # Increased delay between requests to avoid overwhelming the server
-
-# Run the asynchronous main function
 if __name__ == "__main__":
-    asyncio.run(main())
+    # The script now expects IPs as command-line arguments
+    if len(sys.argv) < 2:
+        print("Usage: python misp_scanner.py <ip1> <ip2> ...")
+        sys.exit(1)
+
+    ips_to_process = sys.argv[1:]
+    # Set UTF-8 encoding for stdout on Windows
+    if sys.platform == "win32":
+        sys.stdout.reconfigure(encoding='utf-8')
+        
+    asyncio.run(main(ips_to_process))
