@@ -2,12 +2,12 @@ const express = require("express");
 const path = require("path");
 const mongoose = require("mongoose");
 const readline = require("readline");
-const { spawn } = require("child_process"); // Needed to run external scripts
+const { spawn } = require("child_process");
 
 // --- Main Application Dependencies ---
 const connectDB = require("./config/database");
 const IpAddress = require("./models/IpAddress");
-const MispScanResult = require("./models/MispScanResult"); // For storing scan results
+const MispScanResult = require("./models/MispScanResult"); // Generic model for all indicators
 
 // --- Service Classes ---
 const IpFetcher = require("./services/ipFetcher");
@@ -20,8 +20,8 @@ const Scheduler = require("./utils/scheduler");
 class IpMonitoringApp {
   constructor() {
     this.expressApp = express();
-    this.expressApp.use(express.json({ limit: "10mb" })); // Increase payload limit for manual scans
-    this.expressApp.use(express.urlencoded({ extended: true })); // To parse form data
+    this.expressApp.use(express.json({ limit: "10mb" }));
+    this.expressApp.use(express.urlencoded({ extended: true }));
     this.ipFetcher = new IpFetcher();
     this.ipAnalyzer = new IpAnalyzer();
     this.scheduler = new Scheduler(this.ipFetcher, this.ipAnalyzer);
@@ -37,12 +37,7 @@ class IpMonitoringApp {
       this.setupCLI();
       this.setupGracefulShutdown();
       console.log("✅ Application initialized successfully!");
-      console.log("📋 Available commands:");
-      console.log('  - "r" + Enter to run daily IP fetch job manually');
-      console.log('  - "s" + Enter to show scheduler status');
-      console.log('  - "d" + Enter to show database stats');
-      console.log('  - "scan" + Enter to start MISP scan for new IPs');
-      console.log('  - "q" + Enter to quit');
+      console.log("📋 Available commands: r, s, d, scan, q");
     } catch (error) {
       console.error("❌ Failed to initialize application:", error.message);
       process.exit(1);
@@ -57,180 +52,132 @@ class IpMonitoringApp {
     this.expressApp.set("views", path.join(__dirname, "views"));
 
     // --- PAGE ROUTES ---
-    this.expressApp.get("/", async (req, res) => {
-      try {
-        const initialLimit = 50;
-        const initialIps = await IpAddress.find({})
-          .sort({ lastSeen: -1 })
-          .limit(initialLimit);
-        const totalIps = await IpAddress.countDocuments();
-        res.render("ip-list", { ips: initialIps, totalIps: totalIps });
-      } catch (error) {
-        console.error("Error fetching initial IPs for web view:", error);
-        res.status(500).send("Error fetching IP addresses from the database.");
-      }
+    this.expressApp.get("/", (req, res) => {
+      // Redirect root to the main scanner page
+      res.redirect("/misp-results");
     });
 
-    // This route now just renders the shell page. Data is fetched via API.
     this.expressApp.get("/misp-results", (req, res) => {
       res.render("misp-results");
     });
 
     // --- API ROUTES ---
-    this.expressApp.get("/api/ips", async (req, res) => {
-      try {
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 50;
-        const skip = (page - 1) * limit;
-        const ips = await IpAddress.find({})
-          .sort({ lastSeen: -1 })
-          .skip(skip)
-          .limit(limit);
-        res.json(ips);
-      } catch (error) {
-        res.status(500).json({ message: "Error fetching data" });
-      }
-    });
 
-    // UPDATED: API endpoint for paginated MISP results with search
-    this.expressApp.get("/api/misp-results", async (req, res) => {
-      try {
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 50;
-        const searchTerm = req.query.searchTerm || "";
-        const skip = (page - 1) * limit;
-
-        const query = {};
-        if (searchTerm) {
-          // Use regex for a case-insensitive, partial match on the IP address
-          query.ip = { $regex: searchTerm, $options: "i" };
-        }
-
-        const results = await MispScanResult.find(query)
-          .sort({ scannedAt: -1 })
-          .skip(skip)
-          .limit(limit)
-          .lean();
-
-        const totalResults = await MispScanResult.countDocuments(query);
-
-        res.json({
-          results,
-          totalPages: Math.ceil(totalResults / limit),
-          currentPage: page,
-        });
-      } catch (error) {
-        console.error("Error fetching paginated MISP results:", error);
-        res.status(500).json({ message: "Error fetching results." });
-      }
-    });
-
+    // This is the single, unified endpoint for manual scans.
     this.expressApp.post("/api/misp-scan/manual", (req, res) => {
-      const { ips } = req.body;
-      if (!ips || !Array.isArray(ips) || ips.length === 0) {
+      const { indicators } = req.body;
+      if (
+        !indicators ||
+        !Array.isArray(indicators) ||
+        indicators.length === 0
+      ) {
         return res
           .status(400)
-          .json({ message: "Please provide a non-empty array of IPs." });
+          .json({ message: "Please provide a non-empty array of indicators." });
       }
 
-      console.log(`🔬 Received manual scan request for ${ips.length} IPs.`);
+      console.log(
+        `🔬 Spawning Python script for ${indicators.length} indicators.`
+      );
 
-      const pythonProcess = spawn("python", ["misp_scanner.py", ...ips]);
-      let errorData = "";
+      // Construct a reliable path to the script in the project's root
+      const scriptPath = path.join(
+        __dirname,
+        "..",
+        "misp_universal_scanner.py"
+      );
+      const pythonProcess = spawn("python", [scriptPath, ...indicators]);
 
-      pythonProcess.stderr.on("data", (data) => {
-        errorData += data.toString();
-        console.error(`[Manual Scan Python ERROR]: ${data.toString().trim()}`);
+      let scriptOutput = "";
+      let errorOutput = "";
+
+      // Capture all standard output from the script
+      pythonProcess.stdout.on("data", (data) => {
+        scriptOutput += data.toString();
       });
 
-      pythonProcess.on("close", (code) => {
+      // Capture all error output
+      pythonProcess.stderr.on("data", (data) => {
+        errorOutput += data.toString();
+      });
+
+      // Handle the script finishing its execution
+      pythonProcess.on("close", async (code) => {
+        // If the script exited with an error code, report it.
         if (code !== 0) {
+          console.error(
+            `Python script exited with code ${code}:\n${errorOutput}`
+          );
           return res
             .status(500)
-            .json({ message: "Python script failed.", error: errorData });
+            .json({
+              message: "The analysis script encountered an error.",
+              error: errorOutput,
+            });
         }
-        // Give the DB a moment to process the upload from the script
-        setTimeout(async () => {
-          try {
-            const results = await MispScanResult.find({
-              ip: { $in: ips },
-            }).lean();
-            res.json(results);
-          } catch (dbError) {
-            res
-              .status(500)
-              .json({
-                message: "Scan completed, but failed to fetch results from DB.",
-                error: dbError.message,
-              });
+
+        try {
+          // The entire output of the script is the JSON result array.
+          const results = JSON.parse(scriptOutput);
+
+          // Asynchronously save the results to the database for historical record.
+          // We don't wait for this to finish before responding to the user for faster UI feedback.
+          if (results.length > 0) {
+            const operations = results.map((r) => ({
+              updateOne: {
+                filter: { indicator: r.indicator },
+                update: { $set: { ...r, scannedAt: new Date() } },
+                upsert: true,
+              },
+            }));
+            MispScanResult.bulkWrite(operations)
+              .then((opResult) =>
+                console.log(
+                  `💾 Successfully saved/updated ${
+                    opResult.upsertedCount + opResult.modifiedCount
+                  } scan results.`
+                )
+              )
+              .catch((dbError) =>
+                console.error("❌ Database save error:", dbError)
+              );
           }
-        }, 3000);
+
+          // Immediately send the results back to the UI.
+          res.json(results);
+        } catch (e) {
+          console.error("Error processing Python output:", e.message);
+          res
+            .status(500)
+            .json({
+              message: "Failed to parse the results from the analysis script.",
+              error: scriptOutput,
+            });
+        }
       });
     });
 
-    this.expressApp.post("/api/misp-scan/start", async (req, res) => {
-      console.log("Received request to start MISP scan...");
-      this.startMispScan()
-        .then((message) => res.status(202).json({ message }))
-        .catch((error) => {
-          console.error("❌ Error during MISP scan initiation:", error);
-          res.status(500).json({ message: "Failed to start MISP scan." });
-        });
-    });
-
-    this.expressApp.post("/api/misp-results/upload", async (req, res) => {
-      try {
-        const results = req.body.results;
-        if (!results || !Array.isArray(results)) {
-          return res
-            .status(400)
-            .json({
-              message: 'Invalid data format. "results" array is required.',
-            });
-        }
-        const operations = results.map((r) => ({
-          updateOne: {
-            filter: { ip: r.ip },
-            update: { $set: { ...r, scannedAt: new Date() } },
-            upsert: true,
-          },
-        }));
-        if (operations.length > 0) {
-          await MispScanResult.bulkWrite(operations);
-        }
-        console.log(
-          `💾 Successfully saved ${operations.length} MISP scan results to the database.`
-        );
-        res
-          .status(200)
-          .json({
-            message: `Successfully saved ${operations.length} results.`,
-          });
-      } catch (err) {
-        console.error("❌ Error saving MISP results:", err.message);
-        res
-          .status(500)
-          .json({ message: "Error saving results to the database." });
-      }
-    });
-
-    const PORT = process.env.PORT || 3000;
+    const PORT = process.env.PORT || 3001; // Ensure this is the correct port
     this.expressApp.listen(PORT, () => {
       console.log(`\n🌐 Web server running at http://localhost:${PORT}`);
-      console.log(`   - Main IP List: http://localhost:${PORT}/`);
-      console.log(`   - MISP Results: http://localhost:${PORT}/misp-results`);
+      console.log(`   - MISP Scanner: http://localhost:${PORT}/misp-results`);
     });
   }
 
+  // ... (The rest of your class methods: startMispScan, showInitialStats, setupCLI, setupGracefulShutdown)
+  // These can remain largely the same, but ensure startMispScan also uses the universal scanner if needed.
   async startMispScan() {
-    const scannedDocs = await MispScanResult.find({}).select("ip -_id").lean();
-    const scannedIps = new Set(scannedDocs.map((doc) => doc.ip));
+    const scannedDocs = await MispScanResult.find({ type: "ip" })
+      .select("indicator -_id")
+      .lean();
+    const scannedIps = new Set(scannedDocs.map((doc) => doc.indicator));
     const allDocs = await IpAddress.find({}).select("ip -_id").lean();
     const allIps = allDocs.map((doc) => doc.ip);
     const ipsToScan = allIps.filter((ip) => !scannedIps.has(ip));
 
     if (ipsToScan.length === 0) {
-      const message = "✅ No new IPs to scan. Everything is up-to-date.";
+      const message =
+        "✅ No new IPs to scan from the main list. Everything is up-to-date.";
       console.log(message);
       return message;
     }
@@ -239,6 +186,8 @@ class IpMonitoringApp {
     const totalBatches = Math.ceil(ipsToScan.length / batchSize);
     const message = `🔎 Found ${ipsToScan.length} new IPs to scan. Starting Python script in ${totalBatches} batches...`;
     console.log(message);
+
+    const scriptPath = path.join(__dirname, "..", "misp_universal_scanner.py");
 
     for (let i = 0; i < totalBatches; i++) {
       const batchStart = i * batchSize;
@@ -249,13 +198,14 @@ class IpMonitoringApp {
           batch.length
         } IPs...`
       );
-      const pythonProcess = spawn("python", ["misp_scanner.py", ...batch]);
+      // Use the universal scanner for batched jobs too
+      const pythonProcess = spawn("python", [scriptPath, ...batch]);
       pythonProcess.stdout.on("data", (data) =>
-        console.log(`[Python Batch ${i + 1}]: ${data.toString().trim()}`)
+        console.log(`[Python Batch ${i + 1} STDOUT]: ${data.toString().trim()}`)
       );
       pythonProcess.stderr.on("data", (data) =>
         console.error(
-          `[Python Batch ${i + 1} ERROR]: ${data.toString().trim()}`
+          `[Python Batch ${i + 1} STDERR]: ${data.toString().trim()}`
         )
       );
       pythonProcess.on("close", (code) =>
@@ -283,7 +233,9 @@ class IpMonitoringApp {
         `🗄️  Total unique IP addresses: ${totalCount.toLocaleString()}`
       );
       console.log(`✅ Active IP addresses: ${activeCount.toLocaleString()}`);
-      console.log(`🛡️  IPs scanned in MISP: ${scannedCount.toLocaleString()}`);
+      console.log(
+        `🛡️  Indicators scanned in MISP: ${scannedCount.toLocaleString()}`
+      );
       console.log("📊".repeat(15) + "\n");
     } catch (error) {
       console.error("❌ Error fetching initial stats:", error.message);
@@ -305,9 +257,9 @@ class IpMonitoringApp {
         case "s":
           const status = this.scheduler.getStatus();
           console.log("\n🗓️  Scheduler Status:");
-          console.log(`   Running: ${status.isRunning ? "🟢 Yes" : "🔴 No"}`);
-          console.log(`   Current Time: ${status.currentTime}`);
-          console.log(`   Next Run: ${status.nextRun}`);
+          console.log(`  Running: ${status.isRunning ? "🟢 Yes" : "🔴 No"}`);
+          console.log(`  Current Time: ${status.currentTime}`);
+          console.log(`  Next Run: ${status.nextRun}`);
           break;
         case "d":
           await this.showInitialStats();
@@ -347,11 +299,11 @@ class IpMonitoringApp {
     process.on("SIGINT", () => gracefulShutdown("SIGINT"));
     process.on("uncaughtException", (error) => {
       console.error("💥 Uncaught Exception:", error.message, error.stack);
-      if (error.code !== "ENAMETOOLONG") process.exit(1);
+      process.exit(1);
     });
     process.on("unhandledRejection", (reason, promise) => {
       console.error("💥 Unhandled Rejection at:", promise, "reason:", reason);
-      if (reason.code !== "ENAMETOOLONG") process.exit(1);
+      process.exit(1);
     });
   }
 }

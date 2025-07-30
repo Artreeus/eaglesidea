@@ -1,189 +1,248 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MISP Intelligence Center</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        :root {
+            --bg-light: #f8f9fa;
+            --bg-card: #ffffff;
+            --border-color: #dee2e6;
+            --accent-primary: #0d6efd;
+            --accent-primary-hover: #0b5ed7;
+            --accent-success: #198754;
+            --accent-danger: #dc3545;
+            --text-primary: #212529;
+            --text-secondary: #6c757d;
+            --font-main: 'Inter', sans-serif;
+            --font-mono: 'Roboto Mono', monospace;
+        }
+
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f0f4f8;
+            font-family: var(--font-main);
+            background-color: var(--bg-light);
+            color: var(--text-primary);
         }
-        .search-container {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 4rem 1rem;
-            border-radius: 1rem;
+
+        .card {
+            background: var(--bg-card);
+            padding: 2rem 1.5rem;
+            border-radius: 0.75rem;
             text-align: center;
-            color: white;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.05);
         }
+
         .search-box {
             display: flex;
             align-items: center;
-            max-width: 600px;
+            max-width: 700px;
             margin: 1.5rem auto 0;
-            background-color: rgba(255, 255, 255, 0.2);
+            background-color: var(--bg-light);
+            border: 1px solid var(--border-color);
             border-radius: 2rem;
             padding: 0.5rem;
             transition: all 0.3s ease;
         }
+
         .search-box:focus-within {
-            background-color: rgba(255, 255, 255, 0.3);
-            box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.5);
+            box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.25);
+            border-color: var(--accent-primary);
         }
+
         .search-box i {
-            font-size: 1.5rem;
+            font-size: 1.25rem;
             margin: 0 1rem;
-            color: #e0e0e0;
+            color: var(--text-secondary);
         }
+
         .search-box textarea {
             background: transparent;
             border: none;
-            color: white;
+            color: var(--text-primary);
             flex-grow: 1;
             font-size: 1.125rem;
             padding: 0.75rem 0;
             resize: none;
             outline: none;
-            /* --- CSS Change --- */
-            min-height: 50px; /* Set a minimum height */
-            overflow-y: hidden; /* Hide the scrollbar */
+            min-height: 50px;
+            overflow-y: hidden;
+            font-family: var(--font-mono);
         }
+
         .search-box textarea::placeholder {
-            color: #d1d5db;
+            color: #adb5bd;
         }
+
         .scan-btn {
-            background-color: #ffffff;
-            color: #667eea;
-            font-weight: 700;
+            background-color: var(--accent-primary);
+            color: #ffffff;
+            font-weight: 600;
             padding: 0.75rem 1.5rem;
             border-radius: 9999px;
-            border: none;
             cursor: pointer;
             transition: all 0.2s ease;
             white-space: nowrap;
+            border: none;
         }
-        .scan-btn:hover {
-            background-color: #f0f4f8;
+
+        .scan-btn:hover:not(:disabled) {
+            background-color: var(--accent-primary-hover);
+            transform: translateY(-2px);
         }
+
+        .scan-btn:disabled {
+            background-color: #e9ecef;
+            color: var(--text-secondary);
+            cursor: not-allowed;
+        }
+
         .result-card {
-            background-color: white;
-            border-radius: 1rem;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+            background: var(--bg-card);
+            border-radius: 0.75rem;
             margin-top: 2rem;
             overflow: hidden;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.05);
         }
+
         .result-header {
             padding: 1.5rem;
-            border-bottom: 1px solid #e5e7eb;
+            border-bottom: 1px solid var(--border-color);
         }
+
         .result-header.threat {
-            background-color: #fef2f2;
-            color: #991b1b;
+            border-left: 5px solid var(--accent-danger);
+            background: rgba(220, 53, 69, 0.05);
         }
+
+        .result-header.threat .result-title,
+        .result-header.threat i {
+            color: var(--accent-danger);
+        }
+
         .result-header.clean {
-            background-color: #f0fdf4;
-            color: #166534;
+            border-left: 5px solid var(--accent-success);
+            background: rgba(25, 135, 84, 0.05);
         }
+
+        .result-header.clean .result-title,
+        .result-header.clean i {
+            color: var(--accent-success);
+        }
+
         .result-header-content {
             display: flex;
             align-items: center;
             gap: 1rem;
         }
+
         .result-header-content i {
             font-size: 2rem;
+            width: 32px;
+            text-align: center;
         }
+
         .result-title {
             font-size: 1.5rem;
-            font-weight: 700;
+            font-weight: 600;
+            font-family: var(--font-mono);
+            word-break: break-all;
         }
+
         .result-subtitle {
             font-size: 1rem;
-            opacity: 0.8;
+            color: var(--text-secondary);
         }
+
         .threat-details {
             padding: 1.5rem;
         }
+
         .threat-item {
-            border: 1px solid #e5e7eb;
+            border: 1px solid var(--border-color);
             border-radius: 0.75rem;
             margin-bottom: 1rem;
-            padding: 1rem;
-            transition: all 0.2s ease;
+            padding: 1.5rem;
+            background: var(--bg-light);
         }
-        .threat-item:hover {
-            border-color: #667eea;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.1);
-        }
-        .threat-item h3 {
-            font-size: 1.125rem;
+
+        .threat-item>h3 {
+            font-size: 1.1rem;
             font-weight: 600;
-            color: #1f2937;
-            margin-bottom: 0.5rem;
+            margin-bottom: 1rem;
         }
+
         .threat-info {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 1rem;
-            font-size: 0.875rem;
-            color: #4b5563;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
         }
+
         .threat-info div {
-            background-color: #f9fafb;
-            padding: 0.5rem 0.75rem;
+            padding: 0.75rem;
             border-radius: 0.5rem;
             word-wrap: break-word;
+            border-left: 3px solid var(--border-color);
         }
+
         .threat-info strong {
             font-weight: 600;
-            color: #374151;
+            color: var(--text-primary);
             margin-right: 0.5rem;
         }
-        #loader {
-            text-align: center;
-            padding: 2rem;
-        }
+
         #initial-state {
             text-align: center;
             padding: 4rem;
-            color: #6b7280;
+            color: var(--text-secondary);
         }
+
         #initial-state i {
             font-size: 4rem;
             margin-bottom: 1rem;
-            color: #9ca3af;
+            color: var(--accent-primary);
+            opacity: 0.6;
         }
     </style>
 </head>
+
 <body class="text-gray-800">
 
-    <div class="container mx-auto px-4 py-8">
+    <div class="container mx-auto px-4 py-8 md:py-16">
 
-        <div class="search-container">
-            <i class="fas fa-shield-alt" style="font-size: 3rem; margin-bottom: 1rem;"></i>
-            <h1 class="text-4xl font-bold">MISP Intelligence Center</h1>
-            <p class="text-lg opacity-90 mt-2">Enter one or more IPs (separated by new lines or commas) to scan them against the MISP database.</p>
+        <div class="card">
+            <i class="fas fa-shield-alt"
+                style="font-size: 3rem; margin-bottom: 1rem; color: var(--accent-primary);"></i>
+            <h1 class="text-4xl font-bold">Threat Intelligence Center</h1>
+            <p class="text-lg text-gray-600 mt-2">Enter indicators to scan against the MISP database.</p>
+
             <div class="search-box">
-                <i class="fas fa-search"></i>
-                <textarea id="ip-list-input" placeholder="e.g., 8.8.8.8, 1.1.1.1" rows="1"></textarea>
+                <i class="fas fa-terminal"></i>
+                <textarea id="indicator-input" placeholder="Enter IP, domain, or hash..." rows="1"></textarea>
                 <button id="manual-scan-btn" class="scan-btn">Scan</button>
             </div>
         </div>
 
-        <div id="results-area" class="mt-4">
+        <div id="results-area" class="mt-8">
             <div id="initial-state">
-                <i class="fas fa-binoculars"></i>
-                <h2 class="text-2xl font-bold">Waiting for your command</h2>
-                <p class="text-lg mt-2">Your scan results will appear here.</p>
+                <i class="fas fa-satellite-dish"></i>
+                <h2 class="text-2xl font-bold">Awaiting Scan Directive</h2>
+                <p class="text-lg mt-2">Scan results will appear here.</p>
             </div>
-            <div id="manual-scan-loader" class="hidden">
-                 <div id="loader" class="text-center py-8">
-                    <i class="fas fa-spinner fa-spin fa-3x text-blue-600"></i>
-                    <p class="text-lg text-gray-600 mt-4">Scanning... this may take a moment.</p>
-                </div>
+            <div id="manual-scan-loader" class="hidden text-center py-8">
+                <i class="fas fa-spinner fa-spin fa-3x text-[var(--accent-primary)]"></i>
+                <p id="loader-text" class="text-lg mt-4 text-[var(--text-secondary)]">Analyzing signatures...</p>
             </div>
             <div id="manual-results-container"></div>
         </div>
@@ -192,138 +251,162 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const manualScanBtn = document.getElementById('manual-scan-btn');
-            const ipListInput = document.getElementById('ip-list-input');
-            const manualResultsContainer = document.getElementById('manual-results-container');
-            const manualScanLoader = document.getElementById('manual-scan-loader');
+            const scanBtn = document.getElementById('manual-scan-btn');
+            const indicatorInput = document.getElementById('indicator-input');
+            const resultsContainer = document.getElementById('manual-results-container');
+            const loader = document.getElementById('manual-scan-loader');
+            const loaderText = document.getElementById('loader-text');
             const initialState = document.getElementById('initial-state');
 
-            // --- JavaScript Change: Auto-growing textarea logic ---
-            ipListInput.addEventListener('input', () => {
-                ipListInput.style.height = 'auto'; // Reset height
-                ipListInput.style.height = (ipListInput.scrollHeight) + 'px'; // Set height to content height
+            // --- Auto-growing textarea logic ---
+            indicatorInput.addEventListener('input', () => {
+                indicatorInput.style.height = 'auto';
+                indicatorInput.style.height = (indicatorInput.scrollHeight) + 'px';
             });
 
+            // --- Indicator Classification Logic ---
+            const classifyIndicator = (indicator) => {
+                if (/^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(indicator)) return 'ip';
+                if (/([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:/.test(indicator)) return 'ip';
+                if (/^[a-fA-F0-9]{64}$/.test(indicator)) return 'sha256';
+                if (/^[a-fA-F0-9]{32}$/.test(indicator)) return 'md5';
+                if (/^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,6}$/.test(indicator)) return 'domain';
+                return 'unknown';
+            };
+
+            // --- Helper to get display info based on type ---
+            const getIndicatorDisplayInfo = (type) => {
+                switch (type) {
+                    case 'ip': return { name: 'IP Address', icon: 'fa-network-wired' };
+                    case 'domain': return { name: 'Domain/Hostname', icon: 'fa-globe' };
+                    case 'md5': return { name: 'MD5 Hash', icon: 'fa-hashtag' };
+                    case 'sha256': return { name: 'SHA256 Hash', icon: 'fa-hashtag' };
+                    default: return { name: 'Indicator', icon: 'fa-question-circle' };
+                }
+            };
+
             const handleScan = async () => {
-                const ipsText = ipListInput.value.trim();
-                if (!ipsText) {
-                    alert('Please enter at least one IP address.');
+                const inputText = indicatorInput.value.trim();
+                if (!inputText) {
+                    alert('Error: Please enter at least one indicator.');
                     return;
                 }
 
-                const ips = ipsText.split(/[,\s\n]+/).filter(ip => ip);
+                const indicators = inputText.split(/[,\s\n]+/).filter(Boolean);
+                if (indicators.length === 0) {
+                    alert('Error: No valid indicators found in the input.');
+                    return;
+                }
+
+                // --- Dynamic Loader Text ---
+                const counts = { ip: 0, domain: 0, md5: 0, sha256: 0, unknown: 0 };
+                indicators.forEach(ind => counts[classifyIndicator(ind)]++);
+
+                const parts = [];
+                if (counts.ip) parts.push(`${counts.ip} IP(s)`);
+                if (counts.domain) parts.push(`${counts.domain} Domain(s)`);
+                if (counts.md5) parts.push(`${counts.md5} MD5(s)`);
+                if (counts.sha256) parts.push(`${counts.sha256} SHA256(s)`);
+
+                loaderText.textContent = `Scanning ${parts.join(', ')}...`;
+                // --- End Dynamic Loader ---
 
                 initialState.classList.add('hidden');
-                manualScanLoader.classList.remove('hidden');
-                manualResultsContainer.innerHTML = '';
-                manualScanBtn.disabled = true;
-                manualScanBtn.innerHTML = 'Scanning...';
-
+                loader.classList.remove('hidden');
+                resultsContainer.innerHTML = '';
+                scanBtn.disabled = true;
+                scanBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
 
                 try {
                     const response = await fetch('/api/misp-scan/manual', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ips })
+                        body: JSON.stringify({ indicators }),
                     });
-                    
+
                     if (!response.ok) {
-                         const err = await response.json();
-                         throw new Error(err.message || 'The scan failed on the server.');
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'The scan failed on the server.');
                     }
-                    
+
                     const results = await response.json();
-                    displayManualResults(results, ips);
+                    displayManualResults(results);
 
                 } catch (error) {
                     console.error("Manual scan error:", error);
-                    manualResultsContainer.innerHTML = `<div class="p-4 my-4 text-center text-red-700 bg-red-100 rounded-lg">${error.message}</div>`;
+                    resultsContainer.innerHTML = `<div class="p-4 my-4 text-center text-red-700 bg-red-100 rounded-lg"><strong>Error:</strong> ${error.message}</div>`;
                 } finally {
-                    manualScanLoader.classList.add('hidden');
-                    manualScanBtn.disabled = false;
-                    manualScanBtn.innerHTML = 'Scan';
+                    loader.classList.add('hidden');
+                    scanBtn.disabled = false;
+                    scanBtn.textContent = 'Scan';
                 }
             };
 
-            manualScanBtn.addEventListener('click', handleScan);
-            ipListInput.addEventListener('keydown', (e) => {
-                if (e.ctrlKey && e.key === 'Enter') {
+            scanBtn.addEventListener('click', handleScan);
+            indicatorInput.addEventListener('keydown', (e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                    e.preventDefault();
                     handleScan();
                 }
             });
 
-
-            const displayManualResults = (results, submittedIps) => {
-                let resultsHTML = '';
-                const resultsByIp = new Map(results.map(r => [r.ip, r]));
-
-                submittedIps.forEach(ip => {
-                    const result = resultsByIp.get(ip);
-                    const attributes = result ? (result.response?.response?.Attribute || []) : [];
-                    const isThreat = attributes.length > 0;
-
-                    if (isThreat) {
-                        resultsHTML += createThreatCard(ip, attributes);
-                    } else {
-                        resultsHTML += createCleanCard(ip);
-                    }
-                });
-                manualResultsContainer.innerHTML = resultsHTML;
+            const displayManualResults = (results) => {
+                resultsContainer.innerHTML = results.map(result => {
+                    const attributes = result.response?.response?.Attribute || [];
+                    return attributes.length > 0
+                        ? createThreatCard(result.indicator, result.type, attributes)
+                        : createCleanCard(result.indicator, result.type);
+                }).join('');
             };
 
-            const createCleanCard = (ip) => {
+            const createCleanCard = (indicator, type) => {
+                const { name, icon } = getIndicatorDisplayInfo(type);
                 return `
-                    <div class="result-card">
-                        <div class="result-header clean">
-                            <div class="result-header-content">
-                                <i class="fas fa-check-circle"></i>
-                                <div>
-                                    <h2 class="result-title">${ip}</h2>
-                                    <p class="result-subtitle">Clean. No threats found in the MISP database.</p>
-                                </div>
+                <div class="result-card">
+                    <div class="result-header clean">
+                        <div class="result-header-content">
+                            <i class="fas ${icon}"></i>
+                            <div>
+                                <h2 class="result-title">${indicator}</h2>
+                                <p class="result-subtitle">This ${name} appears clean. No malicious attributes found.</p>
                             </div>
                         </div>
                     </div>
-                `;
+                </div>`;
             };
 
-            const createThreatCard = (ip, attributes) => {
-                let threatItemsHTML = '';
-                attributes.forEach(attr => {
-                    threatItemsHTML += `
-                        <div class="threat-item">
-                            <h3>Event: ${attr.Event.info}</h3>
-                            <div class="threat-info">
-                               <div><strong>Category:</strong> ${attr.category}</div>
-                               <div><strong>Type:</strong> ${attr.type}</div>
-                               <div><strong>Event ID:</strong> ${attr.event_id}</div>
-                               <div><strong>Timestamp:</strong> ${new Date(attr.timestamp * 1000).toLocaleString()}</div>
-                               <div><strong>Comment:</strong> ${attr.comment || 'N/A'}</div>
-                               <div><strong>UUID:</strong> ${attr.uuid}</div>
-                            </div>
+            const createThreatCard = (indicator, type, attributes) => {
+                const { name, icon } = getIndicatorDisplayInfo(type);
+                const threatItemsHTML = attributes.map(attr => `
+                    <div class="threat-item">
+                        <h3>Event: ${attr.Event?.info || 'N/A'}</h3>
+                        <div class="threat-info">
+                            <div><strong>Category:</strong> ${attr.category || 'N/A'}</div>
+                            <div><strong>Type:</strong> ${attr.type || 'N/A'}</div>
+                            <div><strong>Event ID:</strong> ${attr.event_id || 'N/A'}</div>
+                            <div><strong>Timestamp:</strong> ${new Date(attr.timestamp * 1000).toLocaleString()}</div>
+                            <div><strong>Comment:</strong> ${attr.comment || 'N/A'}</div>
+                            <div><strong>UUID:</strong> ${attr.uuid || 'N/A'}</div>
                         </div>
-                    `;
-                });
+                    </div>
+                `).join('');
 
                 return `
                     <div class="result-card">
                         <div class="result-header threat">
                             <div class="result-header-content">
-                                <i class="fas fa-exclamation-triangle"></i>
+                                <i class="fas ${icon}"></i>
                                 <div>
-                                    <h2 class="result-title">${ip}</h2>
-                                    <p class="result-subtitle">${attributes.length} threat attribute(s) found.</p>
+                                    <h2 class="result-title">${indicator}</h2>
+                                    <p class="result-subtitle">Threat Detected! Found ${attributes.length} associated attribute(s).</p>
                                 </div>
                             </div>
                         </div>
-                        <div class="threat-details">
-                            ${threatItemsHTML}
-                        </div>
-                    </div>
-                `;
+                        <div class="threat-details">${threatItemsHTML}</div>
+                    </div>`;
             };
-
         });
     </script>
 </body>
+
 </html>

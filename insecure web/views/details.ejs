@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scan Details for <%= domainData.name %>
+    </title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+            --primary-text: #212529;
+            --secondary-text: #6c757d;
+            --border-color: #dee2e6;
+            --card-bg: #ffffff;
+            --body-bg: #f4f7f9;
+            --secure-color: #28a745;
+            --compromised-color: #dc3545;
+            --secure-bg: #d4edda;
+            --compromised-bg: #f8d7da;
+            --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --border-radius: 0.75rem;
+        }
+
+        body {
+            background-color: var(--body-bg);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            color: var(--primary-text);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin-top: 20px;
+            margin-bottom: 40px;
+            padding: 0 15px;
+        }
+
+        .page-header {
+            margin-bottom: 2rem;
+        }
+
+        .back-btn {
+            text-decoration: none;
+            color: var(--secondary-text);
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+
+        .back-btn:hover {
+            color: var(--primary-text);
+        }
+
+        .report-card {
+            background: var(--card-bg);
+            border-radius: var(--border-radius);
+            box-shadow: var(--card-shadow);
+            overflow: hidden;
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        .report-header {
+            padding: 1.5rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .domain-name {
+            font-size: 1.5rem;
+            /* Adjusted for responsiveness */
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            word-break: break-all;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-pill.compromised {
+            background-color: var(--compromised-bg);
+            color: var(--compromised-color);
+        }
+
+        .status-pill.secure {
+            background-color: var(--secure-bg);
+            color: var(--secure-color);
+        }
+
+        .report-body {
+            padding: 1rem;
+            /* Adjusted for mobile */
+        }
+
+        .password-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .password-value {
+            font-family: "Courier New", Courier, monospace;
+            color: var(--compromised-color);
+            font-weight: 500;
+        }
+
+        .copy-btn {
+            background: #e9ecef;
+            border: none;
+            border-radius: 5px;
+            padding: 2px 8px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .copy-btn:hover {
+            background-color: #ced4da;
+        }
+
+        .info-panel {
+            text-align: center;
+            padding: 3rem 1.5rem;
+        }
+
+        .info-panel .icon-lg {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .info-panel.secure .icon-lg {
+            color: var(--secure-color);
+        }
+
+        .info-panel.failed .icon-lg {
+            color: var(--compromised-color);
+        }
+
+        .info-panel h4 {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .table-responsive {
+            margin-top: 1rem;
+        }
+
+        .table th,
+        .table td {
+            vertical-align: middle;
+            font-size: 0.9rem;
+        }
+
+        .table th {
+            white-space: nowrap;
+        }
+
+        /* Responsive Modal Styles */
+        .modal-body .data-row {
+            display: grid;
+            grid-template-columns: 120px 1fr;
+            /* Default for larger screens */
+            align-items: flex-start;
+            gap: 1rem;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .modal-body .data-row:last-child {
+            border-bottom: none;
+        }
+
+        .modal-body .data-row .label {
+            grid-column: 1;
+            font-weight: 600;
+            color: var(--primary-text);
+        }
+
+        .modal-body .data-row .value {
+            grid-column: 2;
+            color: var(--secondary-text);
+            word-break: break-all;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Media Queries for Responsiveness */
+        @media (max-width: 767.98px) {
+            .report-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.5rem;
+            }
+
+            .report-body {
+                padding: 1.5rem;
+            }
+        }
+
+        @media (max-width: 575.98px) {
+            .page-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.5rem;
+            }
+
+            .domain-name {
+                font-size: 1.25rem;
+            }
+
+            .modal-body .data-row {
+                grid-template-columns: 1fr;
+                /* Stack label and value on mobile */
+                gap: 0.25rem;
+            }
+
+            .modal-body .data-row .value {
+                grid-column: 1;
+                /* Ensure value takes full width when stacked */
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <div class="page-header d-flex justify-content-between align-items-center">
+            <h1 class="h3 mb-0">Scan Report</h1>
+            <a href="/" class="back-btn">
+                <i class="fa-solid fa-arrow-left me-1"></i>Back to Dashboard
+            </a>
+        </div>
+
+        <div class="report-card">
+            <% if (!domainData || !domainData.scanResult || !domainData.scanResult.success) { %>
+                <div class="report-body">
+                    <div class="info-panel failed">
+                        <i class="fa-solid fa-triangle-exclamation icon-lg"></i>
+                        <h4>Scan Failed or No Data</h4>
+                        <p class="text-secondary">
+                            <% if (domainData && domainData.scanResult) { %>
+                                <%= domainData.scanResult.error %>
+                                    <% } else { %>
+                                        No scan data available for this domain.
+                                        <% } %>
+                        </p>
+                    </div>
+                </div>
+                <% } else { const results=domainData.scanResult.data; const isCompromised=results.length> 0; %>
+                    <div class="report-header">
+                        <div>
+                            <p class="text-secondary mb-1">Domain</p>
+                            <h2 class="domain-name">
+                                <%= domainData.name %>
+                            </h2>
+                            <p class="text-secondary mb-0 small">
+                                <strong>EITIx Ingest Time:</strong>
+                                <%= domainData.ingestTime ? new Date(domainData.ingestTime).toLocaleString('en-US', {
+                                    dateStyle: 'long' , timeStyle: 'short' }) : 'N/A' %>
+                            </p>
+                        </div>
+                        <div class="status-pill <%= isCompromised ? 'compromised' : 'secure' %>">
+                            <i class="fa-solid <%= isCompromised ? 'fa-lock-open' : 'fa-shield-halved' %>"></i>
+                            <span>
+                                <%= isCompromised ? 'Compromised' : 'Secure' %>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="report-body">
+                        <% if (isCompromised) { %>
+                            <h5 class="mb-3">Found <strong>
+                                    <%= results.length %>
+                                </strong> Breach Record(s)</h5>
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Breach ID</th>
+                                            <th>Email</th>
+                                            <th>Password</th>
+                                            <th>Breach Timestamp</th>
+                                            <th>Date Added</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <% results.forEach(function(breach) { %>
+                                            <tr>
+                                                <td><code><%= breach.breachId || 'N/A' %></code></td>
+                                                <td>
+                                                    <%= breach.email || 'N/A' %>
+                                                </td>
+                                                <td>
+                                                    <% if (breach.password && breach.password !=='N/A' ) { %>
+                                                        <div class="password-wrapper">
+                                                            <span
+                                                                class="password-value">&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;</span>
+                                                            <button class="copy-btn"
+                                                                data-password="<%= breach.password %>">
+                                                                <i class="fa-regular fa-copy"></i> Copy
+                                                            </button>
+                                                        </div>
+                                                        <% } else { %>
+                                                            Not Found
+                                                            <% } %>
+                                                </td>
+                                                <td>
+                                                    <%= breach.timestamp ? new
+                                                        Date(breach.timestamp).toLocaleString('en-US', {
+                                                        dateStyle: 'medium' , timeStyle: 'short' }) : 'N/A' %>
+                                                </td>
+                                                <td>
+                                                    <%# ** KEY CHANGE: Use createdAt instead of addedDate ** %>
+                                                        <%= breach.createdAt ? new
+                                                            Date(breach.createdAt).toLocaleDateString('en-US', {
+                                                            dateStyle: 'medium' }) : 'N/A' %>
+                                                </td>
+                                                <td>
+                                                    <button class="btn btn-outline-primary btn-sm"
+                                                        data-bs-toggle="modal" data-bs-target="#breachDetailModal"
+                                                        data-breach-details='<%- encodeURIComponent(JSON.stringify(breach)) %>'>
+                                                        Details
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            <% }); %>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <% } else { %>
+                                <div class="info-panel secure">
+                                    <i class="fa-solid fa-shield-halved icon-lg"></i>
+                                    <h4>All Clear!</h4>
+                                    <p class="text-secondary">We found no evidence of <strong>
+                                            <%= domainData.name %>
+                                        </strong> in our extensive breach database.</p>
+                                </div>
+                                <% } %>
+                    </div>
+                    <% } %>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal fade" id="breachDetailModal" tabindex="-1" aria-labelledby="breachDetailModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="breachDetailModalLabel">Breach Details</h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="modalBodyContent">
+                        <!-- Content will be injected by JavaScript -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('click', function (e) {
+            if (e.target.matches('.copy-btn') || e.target.closest('.copy-btn')) {
+                const button = e.target.closest('.copy-btn');
+                const password = button.dataset.password;
+                if (password) {
+                    navigator.clipboard.writeText(password).then(() => {
+                        const originalContent = button.innerHTML;
+                        button.innerHTML = '<i class="fa-solid fa-check"></i> Copied!';
+                        button.disabled = true;
+                        setTimeout(() => {
+                            button.innerHTML = originalContent;
+                            button.disabled = false;
+                        }, 2000);
+                    }).catch(err => {
+                        console.error('Failed to copy password: ', err);
+                        // Avoid using alert() in production apps
+                        const copyError = document.createElement('div');
+                        copyError.className = 'alert alert-danger';
+                        copyError.textContent = 'Failed to copy password.';
+                        document.body.prepend(copyError);
+                        setTimeout(() => copyError.remove(), 3000);
+                    });
+                }
+            }
+        });
+
+        const breachDetailModal = document.getElementById('breachDetailModal');
+        if (breachDetailModal) {
+            breachDetailModal.addEventListener('show.bs.modal', event => {
+                const button = event.relatedTarget;
+                const breachDataString = button.getAttribute('data-breach-details');
+                const breach = JSON.parse(decodeURIComponent(breachDataString));
+
+                const modalTitle = breachDetailModal.querySelector('.modal-title');
+                modalTitle.textContent = `Details for Breach ID: ${breach.breachId || 'N/A'}`;
+
+                const formatDateTime = (dateString) => {
+                    if (!dateString) return 'N/A';
+                    return new Date(dateString).toLocaleString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                };
+
+                const formatDate = (dateString) => {
+                    if (!dateString) return 'N/A';
+                    return new Date(dateString).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                    });
+                };
+
+                const createRow = (label, value) => {
+                    const displayValue = value || 'N/A';
+                    return `<div class="data-row"><span class="label">${label}</span><span class="value">${displayValue}</span></div>`;
+                };
+
+                const modalBody = breachDetailModal.querySelector('#modalBodyContent');
+                modalBody.innerHTML = `
+                    ${createRow('Breach ID', `<code>${breach.breachId}</code>`)}
+                    ${createRow('Email', breach.email)}
+                    ${createRow('Password', breach.password)}
+                    ${createRow('Breach Timestamp', formatDateTime(breach.timestamp))}
+                    ${createRow('Date Added', formatDate(breach.createdAt))}
+                    ${createRow('Leak Name', breach.leakName)}
+                    ${createRow('Database Name', breach.databaseName)}
+                    ${createRow('Source', breach.source)}
+                    ${createRow('Compromised Data', breach.compromisedData)}
+                    ${createRow('Description', breach.breachDescription)}
+                `;
+            });
+        }
+    </script>
+</body>
+
+</html>
